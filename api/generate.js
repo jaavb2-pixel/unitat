@@ -14,13 +14,23 @@ export default async function handler(req, res) {
       try { incoming = JSON.parse(incoming); } catch {}
     }
 
-    const prompt = incoming.messages
-      ? incoming.messages.map(m => m.content).join("\n")
-      : incoming.prompt || "";
+    console.log("Incoming keys:", Object.keys(incoming || {}));
+    console.log("Has messages:", !!incoming?.messages);
+    console.log("Has prompt:", !!incoming?.prompt);
 
     const maxTokens = incoming.maxTokens || incoming.max_tokens || 1500;
 
-    // Crida a l'API de Groq (compatible amb OpenAI)
+    // Construïm els missatges
+    let messages;
+    if (incoming.messages && Array.isArray(incoming.messages)) {
+      messages = incoming.messages;
+    } else {
+      messages = [{ role: "user", content: incoming.prompt || "" }];
+    }
+
+    console.log("Messages count:", messages.length);
+    console.log("First message preview:", messages[0]?.content?.substring(0, 100));
+
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -30,22 +40,24 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         max_tokens: maxTokens,
-        messages: incoming.messages || [
-          { role: "user", content: prompt }
-        ],
+        messages,
       }),
     });
 
     const data = await response.json();
+    console.log("Groq status:", response.status);
+    console.log("Groq choices:", data.choices?.length);
 
     if (!response.ok) {
       console.error("Error Groq:", JSON.stringify(data));
       return res.status(response.status).json(data);
     }
 
-    // Convertim la resposta de Groq al format d'Anthropic
-    // perquè el HTML espera { content: [{ text: "..." }] }
     const text = data.choices?.[0]?.message?.content || "";
+    console.log("Text length:", text.length);
+    console.log("Text preview:", text.substring(0, 100));
+
+    // Retornem en format Anthropic perquè el HTML sap llegir-lo
     return res.status(200).json({
       content: [{ type: "text", text }]
     });
