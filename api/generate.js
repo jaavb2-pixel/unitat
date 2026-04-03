@@ -3,9 +3,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Mètode no permès" });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "ANTHROPIC_API_KEY no configurada." });
+    return res.status(500).json({ error: "GROQ_API_KEY no configurada." });
   }
 
   try {
@@ -14,44 +14,42 @@ export default async function handler(req, res) {
       try { incoming = JSON.parse(incoming); } catch {}
     }
 
-    let body;
-    if (incoming?.messages) {
-      body = {
-        model: incoming.model || "claude-haiku-4-5-20251001",
-        max_tokens: incoming.max_tokens || 1500,
-        messages: incoming.messages,
-      };
-    } else if (incoming?.prompt) {
-      body = {
-        model: incoming.model || "claude-haiku-4-5-20251001",
-        max_tokens: incoming.max_tokens || 1500,
-        messages: [{ role: "user", content: incoming.prompt }],
-      };
-    } else {
-      body = {
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1500,
-        ...incoming,
-      };
-    }
+    const prompt = incoming.messages
+      ? incoming.messages.map(m => m.content).join("\n")
+      : incoming.prompt || "";
 
-    console.log("Body enviat:", JSON.stringify(body).substring(0, 300));
+    const maxTokens = incoming.maxTokens || incoming.max_tokens || 1500;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    // Crida a l'API de Groq (compatible amb OpenAI)
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${apiKey}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        max_tokens: maxTokens,
+        messages: incoming.messages || [
+          { role: "user", content: prompt }
+        ],
+      }),
     });
 
     const data = await response.json();
+
     if (!response.ok) {
-      console.error("Error Anthropic:", JSON.stringify(data));
+      console.error("Error Groq:", JSON.stringify(data));
+      return res.status(response.status).json(data);
     }
-    return res.status(response.status).json(data);
+
+    // Convertim la resposta de Groq al format d'Anthropic
+    // perquè el HTML espera { content: [{ text: "..." }] }
+    const text = data.choices?.[0]?.message?.content || "";
+    return res.status(200).json({
+      content: [{ type: "text", text }]
+    });
+
   } catch (err) {
     console.error("Error proxy:", err.message);
     return res.status(500).json({ error: err.message });
