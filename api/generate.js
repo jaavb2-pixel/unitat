@@ -14,22 +14,10 @@ export default async function handler(req, res) {
       try { incoming = JSON.parse(incoming); } catch {}
     }
 
-    console.log("Incoming keys:", Object.keys(incoming || {}));
-    console.log("Has messages:", !!incoming?.messages);
-    console.log("Has prompt:", !!incoming?.prompt);
-
     const maxTokens = incoming.maxTokens || incoming.max_tokens || 1500;
-
-    // Construïm els missatges
-    let messages;
-    if (incoming.messages && Array.isArray(incoming.messages)) {
-      messages = incoming.messages;
-    } else {
-      messages = [{ role: "user", content: incoming.prompt || "" }];
-    }
-
-    console.log("Messages count:", messages.length);
-    console.log("First message preview:", messages[0]?.content?.substring(0, 100));
+    const messages = incoming.messages && Array.isArray(incoming.messages)
+      ? incoming.messages
+      : [{ role: "user", content: incoming.prompt || "" }];
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -45,22 +33,17 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    console.log("Groq status:", response.status);
-    console.log("Groq choices:", data.choices?.length);
 
     if (!response.ok) {
       console.error("Error Groq:", JSON.stringify(data));
-      return res.status(response.status).json(data);
+      return res.status(response.status).json({ error: data?.error?.message || "Error Groq" });
     }
 
     const text = data.choices?.[0]?.message?.content || "";
-    console.log("Text length:", text.length);
-    console.log("Text preview:", text.substring(0, 100));
+    console.log("Text generat, longitud:", text.length);
 
-    // Retornem en format Anthropic perquè el HTML sap llegir-lo
-    return res.status(200).json({
-      content: [{ type: "text", text }]
-    });
+    // El HTML espera exactament { text: "..." }
+    return res.status(200).json({ text });
 
   } catch (err) {
     console.error("Error proxy:", err.message);
