@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // Només acceptem POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Mètode no permès" });
   }
@@ -10,11 +9,33 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = {
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1500,
-      ...req.body,
-    };
+    let incoming = req.body;
+    if (typeof incoming === "string") {
+      try { incoming = JSON.parse(incoming); } catch {}
+    }
+
+    let body;
+    if (incoming?.messages) {
+      body = {
+        model: incoming.model || "claude-haiku-4-5-20251001",
+        max_tokens: incoming.max_tokens || 1500,
+        messages: incoming.messages,
+      };
+    } else if (incoming?.prompt) {
+      body = {
+        model: incoming.model || "claude-haiku-4-5-20251001",
+        max_tokens: incoming.max_tokens || 1500,
+        messages: [{ role: "user", content: incoming.prompt }],
+      };
+    } else {
+      body = {
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1500,
+        ...incoming,
+      };
+    }
+
+    console.log("Body enviat:", JSON.stringify(body).substring(0, 300));
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -27,8 +48,12 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+    if (!response.ok) {
+      console.error("Error Anthropic:", JSON.stringify(data));
+    }
     return res.status(response.status).json(data);
   } catch (err) {
+    console.error("Error proxy:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }
