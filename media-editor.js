@@ -30,12 +30,14 @@
 
   function collectData() {
     const rs = getAppState();
+    const sa = getSAData();
     if (rs && rs.sessions?.length) {
       return {
         titol: rs.titol || '',
         assignatura: rs.assignatura || '',
         nivell: rs.nivell || '',
         justificacio: rs.justificacio || '',
+        sa,
         sessions: rs.sessions
           .filter(s => s.contingutAlumne || s.exercicis)
           .map((s, i) => ({
@@ -48,7 +50,7 @@
       };
     }
     // Fallback DOM
-    const data = { titol:'', assignatura:'', nivell:'', justificacio:'', sessions:[] };
+    const data = { titol:'', assignatura:'', nivell:'', justificacio:'', sa: getSAData(), sessions:[] };
     document.querySelectorAll('input[type=text]').forEach(inp => {
       const lbl = inp.closest('div')?.querySelector('label')?.textContent?.toLowerCase()||'';
       if (lbl.includes('títol')||lbl.includes('titol')) data.titol = inp.value;
@@ -64,6 +66,146 @@
       if (contingut||exercicis) data.sessions.push({idx:i+1,nom,contingut,exercicis,objectius:''});
     });
     return data;
+  }
+
+  // ── LLEGEIX DADES DE LA SA ───────────────────────────────────────
+  function getSAData() {
+    const get = id => document.getElementById(id)?.value || '';
+    return {
+      titolSA:     get('sa-titol'),
+      narrativa:   get('sa-narrativa'),
+      repte:       get('sa-repte'),
+      producte:    get('sa-producte'),
+      connexio:    get('sa-connexio'),
+      arees:       get('sa-arees'),
+      temporitzacio: get('sa-temporitzacio'),
+    };
+  }
+
+  // ── INJECTA LA SECCIÓ DE SA AL DOM ──────────────────────────────
+  function injectSASection() {
+    if (document.getElementById('ud-sa-section')) return;
+    // Busquem el card de configuració (el que conté el títol de la unitat)
+    const cards = document.querySelectorAll('.card');
+    let targetCard = null;
+    cards.forEach(c => {
+      if (c.textContent.includes('Títol de la Unitat') || c.textContent.includes('Justific')) {
+        targetCard = c;
+      }
+    });
+    if (!targetCard) return;
+
+    const section = document.createElement('div');
+    section.id = 'ud-sa-section';
+    section.style.cssText = 'background:white;border-radius:12px;border:1.5px solid #e4e8f0;margin-bottom:20px;overflow:hidden';
+    section.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1.5px solid #e4e8f0;background:#f8f9fc">
+        <span style="font-size:18px">🎯</span>
+        <h2 style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:#1a2744;flex:1;margin:0">Situació d'Aprenentatge</h2>
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1a2744;background:rgba(200,150,12,.15);border:1px solid rgba(200,150,12,.3);padding:3px 10px;border-radius:20px">LOMLOE · Art. 2</span>
+        <button id="sa-ia-btn" style="padding:6px 14px;background:linear-gradient(135deg,#c8960c,#f0b429);color:#1a2744;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">✨ Generar amb IA</button>
+      </div>
+      <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="grid-column:1/-1">
+          <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#1a2744;margin-bottom:6px">Títol de la Situació d'Aprenentatge</label>
+          <input id="sa-titol" type="text" placeholder='Ex: "La música com a mirall del seu temps"' style="width:100%;padding:10px 13px;border:1.5px solid #e4e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none">
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#1a2744;margin-bottom:6px">Narrativa / Context Motivador</label>
+          <textarea id="sa-narrativa" rows="3" placeholder="Explica la situació real que dona sentit a l'aprenentatge. Ha de connectar amb l'experiència de l'alumnat i despertar la seua curiositat..." style="width:100%;padding:10px 13px;border:1.5px solid #e4e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;resize:vertical"></textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#1a2744;margin-bottom:6px">Repte o Pregunta Guia</label>
+          <textarea id="sa-repte" rows="2" placeholder='Ex: "Com podem usar la música per entendre millor la Història?"' style="width:100%;padding:10px 13px;border:1.5px solid #e4e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;resize:vertical"></textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#1a2744;margin-bottom:6px">Producte Final</label>
+          <textarea id="sa-producte" rows="2" placeholder='Ex: "Podcast on l\'alumnat explica un període musical als seus companys"' style="width:100%;padding:10px 13px;border:1.5px solid #e4e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;resize:vertical"></textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#1a2744;margin-bottom:6px">Connexió amb la Vida Real</label>
+          <textarea id="sa-connexio" rows="2" placeholder="Com es relaciona amb situacions reals fora de l'aula?" style="width:100%;padding:10px 13px;border:1.5px solid #e4e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;resize:vertical"></textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#1a2744;margin-bottom:6px">Àrees Implicades</label>
+          <textarea id="sa-arees" rows="2" placeholder='Ex: "Música, Història, Llengua Valenciana, Tecnologia"' style="width:100%;padding:10px 13px;border:1.5px solid #e4e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;resize:vertical"></textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#1a2744;margin-bottom:6px">Temporització Total</label>
+          <input id="sa-temporitzacio" type="text" placeholder='Ex: "6 sessions de 50 minuts (3 setmanes)"' style="width:100%;padding:10px 13px;border:1.5px solid #e4e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none">
+        </div>
+      </div>`;
+
+    // Inserim just després del primer card (dades bàsiques)
+    targetCard.parentNode.insertBefore(section, targetCard.nextSibling);
+
+    // Botó generar amb IA
+    document.getElementById('sa-ia-btn').onclick = generateSAWithAI;
+  }
+
+  // ── GENERA SA AMB IA ─────────────────────────────────────────────
+  async function generateSAWithAI() {
+    const btn = document.getElementById('sa-ia-btn');
+    const rs = getAppState();
+    const titol = rs?.titol || document.querySelector('input[type=text]')?.value || '';
+    const assignatura = rs?.assignatura || '';
+    const nivell = rs?.nivell || '';
+    const justificacio = rs?.justificacio || '';
+
+    if (!titol && !justificacio) {
+      alert('Omple primer el títol de la unitat i la justificació.');
+      return;
+    }
+
+    btn.textContent = '⏳ Generant...';
+    btn.disabled = true;
+
+    try {
+      const prompt = `Ets un expert en didàctica i en la LOMLOE aplicada a la Comunitat Valenciana (Decret 107/2022).
+
+Genera una Situació d'Aprenentatge completa per a la següent unitat didàctica:
+- Títol: ${titol}
+- Assignatura: ${assignatura}
+- Nivell: ${nivell}r ESO
+- Justificació: ${justificacio}
+
+Respon ÚNICAMENT en format JSON (sense cap text addicional ni backticks), amb exactament aquestes claus:
+{
+  "titolSA": "Títol evocador i motivador per a l'alumnat",
+  "narrativa": "Context motivador de 3-4 frases que connecta amb la vida real de l'alumnat",
+  "repte": "Pregunta guia o repte principal que orienta tota la unitat",
+  "producte": "Descripció del producte o tasca final que ha de crear l'alumnat",
+  "connexio": "Com es connecta amb situacions reals fora de l'aula (2-3 frases)",
+  "arees": "Assignatures i àrees implicades en la SA",
+  "temporitzacio": "Nombre de sessions i durada aproximada"
+}
+
+Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'ESO.`;
+
+      const response = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, maxTokens: 800 })
+      });
+      const result = await response.json();
+      const text = result.text || '';
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+
+      if (parsed.titolSA)       { const el = document.getElementById('sa-titol');         if(el) el.value = parsed.titolSA; }
+      if (parsed.narrativa)     { const el = document.getElementById('sa-narrativa');     if(el) el.value = parsed.narrativa; }
+      if (parsed.repte)         { const el = document.getElementById('sa-repte');         if(el) el.value = parsed.repte; }
+      if (parsed.producte)      { const el = document.getElementById('sa-producte');      if(el) el.value = parsed.producte; }
+      if (parsed.connexio)      { const el = document.getElementById('sa-connexio');      if(el) el.value = parsed.connexio; }
+      if (parsed.arees)         { const el = document.getElementById('sa-arees');         if(el) el.value = parsed.arees; }
+      if (parsed.temporitzacio) { const el = document.getElementById('sa-temporitzacio'); if(el) el.value = parsed.temporitzacio; }
+
+    } catch(e) {
+      alert('Error generant la SA: ' + e.message);
+    } finally {
+      btn.textContent = '✨ Generar amb IA';
+      btn.disabled = false;
+    }
   }
 
   // ── NETEJA HTML → TEXT PLA ───────────────────────────────────────
@@ -113,6 +255,36 @@
       x:0.5, y:5.3, w:8.5, h:0.3,
       fontSize:10, color:'556677', align:'left'
     });
+
+    // ── DIAPOSITIVA SA ──
+    if (data.sa && Object.values(data.sa).some(v=>v)) {
+      const saSlide = pptx.addSlide();
+      saSlide.background = { color: 'fef9eb' };
+      saSlide.addShape(pptx.ShapeType.rect, { x:0, y:0, w:0.15, h:'100%', fill:{ color: GOLD } });
+      saSlide.addText('SITUACIÓ D\'APRENENTATGE · LOMLOE', {
+        x:0.3, y:0.12, w:9.2, h:0.3,
+        fontSize:9, bold:true, color:'7a5c00', align:'left', charSpacing:2
+      });
+      if (data.sa.titolSA) saSlide.addText(data.sa.titolSA, {
+        x:0.3, y:0.45, w:9.2, h:0.7,
+        fontSize:22, bold:true, color:NAVY, fontFace:'Georgia', align:'left', wrap:true
+      });
+      const saFields = [
+        data.sa.repte     ? `❓ Repte: ${data.sa.repte}` : null,
+        data.sa.producte  ? `🏆 Producte: ${data.sa.producte}` : null,
+        data.sa.connexio  ? `🌍 Connexió: ${data.sa.connexio}` : null,
+        data.sa.arees     ? `📚 Àrees: ${data.sa.arees}` : null,
+        data.sa.temporitzacio ? `🕐 Temporització: ${data.sa.temporitzacio}` : null,
+      ].filter(Boolean);
+      if (data.sa.narrativa) saSlide.addText(data.sa.narrativa, {
+        x:0.3, y:1.2, w:9.2, h:1.0,
+        fontSize:13, color:'444444', italic:true, align:'left', wrap:true, lineSpacingMultiple:1.3
+      });
+      if (saFields.length) saSlide.addText(
+        saFields.map(f => ({ text: f+'\n', options:{ fontSize:12, color:'2c2c2c', paraSpaceAfter:5 } })),
+        { x:0.3, y:2.35, w:9.2, h:3.2, valign:'top', align:'left', wrap:true, lineSpacingMultiple:1.4 }
+      );
+    }
 
     // ── SESSIÓ: DIAPOSITIVA TÍTOL + CONTINGUT ──
     data.sessions.forEach((s, i) => {
@@ -275,8 +447,19 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
 .ex-n{min-width:26px;height:26px;border-radius:50%;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px}
 .ex-t{font-size:15px;color:#2c2c2c;line-height:1.6;flex:1}
 .footer{text-align:center;padding:22px;font-size:11px;color:#bbb;letter-spacing:.5px;text-transform:uppercase;border-top:1px solid #e8e6e0;margin:0 40px}
-@media(max-width:600px){.cover{padding:28px 20px 24px}.sess,.just,.footer{margin-left:12px;margin-right:12px}.sess-hero{padding:18px 18px 14px}.sess-body{padding:20px 18px}}
-@media print{body{background:white}.sess{box-shadow:none;break-inside:avoid}}
+.sa-section{margin:0 40px 32px;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07);border-left:6px solid #c8960c}
+.sa-header{display:flex;align-items:flex-start;gap:16px;padding:24px 28px 16px;border-bottom:1px solid #f0ede4;background:#fef9eb}
+.sa-icon{font-size:32px;flex-shrink:0;margin-top:4px}
+.sa-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#7a5c00;margin-bottom:6px}
+.sa-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#1a2744;line-height:1.2}
+.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0}
+.sa-item{padding:18px 24px;border-bottom:1px solid #f0ede4;border-right:1px solid #f0ede4}
+.sa-item:nth-child(even){border-right:none}
+.sa-full{grid-column:1/-1;border-right:none}
+.sa-item-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#7a5c00;margin-bottom:8px}
+.sa-item p{font-size:14px;color:#2c2c2c;line-height:1.7}
+@media(max-width:600px){.sa-section,.sa-grid{grid-template-columns:1fr}.sa-item{border-right:none}.cover{padding:28px 20px 24px}.sess,.just,.sa-section,.footer{margin-left:12px;margin-right:12px}.sess-hero{padding:18px 18px 14px}.sess-body{padding:20px 18px}}
+@media print{body{background:white}.sess{box-shadow:none;break-inside:avoid}.sa-section{break-inside:avoid}}
 </style></head><body>
 <div class="cover">
   <div class="cover-meta">Decret 107/2022 · LOMLOE · Comunitat Valenciana</div>
@@ -290,7 +473,24 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
   <div class="cover-date">${date}</div>
 </div>
 ${justificacio?`<div class="just">${justificacio}</div>`:''}
-${sessionsHTML}
+${data.sa && Object.values(data.sa).some(v=>v) ? `
+<div class="sa-section">
+  <div class="sa-header">
+    <div class="sa-icon">🎯</div>
+    <div>
+      <div class="sa-label">Situació d'Aprenentatge · LOMLOE Art. 2</div>
+      <h2 class="sa-title">${data.sa.titolSA || ''}</h2>
+    </div>
+  </div>
+  <div class="sa-grid">
+    ${data.sa.narrativa?`<div class="sa-item sa-full"><div class="sa-item-label">📖 Narrativa / Context motivador</div><p>${data.sa.narrativa}</p></div>`:''}
+    ${data.sa.repte?`<div class="sa-item"><div class="sa-item-label">❓ Repte o pregunta guia</div><p>${data.sa.repte}</p></div>`:''}
+    ${data.sa.producte?`<div class="sa-item"><div class="sa-item-label">🏆 Producte final</div><p>${data.sa.producte}</p></div>`:''}
+    ${data.sa.connexio?`<div class="sa-item"><div class="sa-item-label">🌍 Connexió amb la vida real</div><p>${data.sa.connexio}</p></div>`:''}
+    ${data.sa.arees?`<div class="sa-item"><div class="sa-item-label">📚 Àrees implicades</div><p>${data.sa.arees}</p></div>`:''}
+    ${data.sa.temporitzacio?`<div class="sa-item"><div class="sa-item-label">🕐 Temporització</div><p>${data.sa.temporitzacio}</p></div>`:''}
+  </div>
+</div>` : ''}
 <div class="footer">Material didàctic · Decret 107/2022 · Comunitat Valenciana</div>
 </body></html>`;
   }
@@ -473,9 +673,10 @@ ${sessionsHTML}
         if(parseInt(ta.getAttribute('rows')||0)>=7) convertToEditor(ta);
       });
       setupHeader();
+      injectSASection();
     }).observe(document.body,{childList:true,subtree:true});
 
-    [500,1000,2000,3000].forEach(t=>setTimeout(setupHeader,t));
+    [500,1000,2000,3000].forEach(t=>setTimeout(()=>{setupHeader();injectSASection();},t));
   }
 
   if (document.body) {
