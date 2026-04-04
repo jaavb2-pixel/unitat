@@ -1,5 +1,14 @@
 (function () {
 
+  // ── CARREGA PPTXGENJS DINÀMICAMENT ───────────────────────────────
+  function loadPptxGen(cb) {
+    if (window.PptxGenJS) return cb();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+
   // ── ACCÉS A L'ESTAT DE REACT ─────────────────────────────────────
   function getAppState() {
     const root = document.getElementById('root');
@@ -51,10 +60,155 @@
         if (parseInt(ta.getAttribute('rows')||0) === 8) contingut = ta.value;
         if (parseInt(ta.getAttribute('rows')||0) === 6) exercicis = ta.value;
       });
-      card.querySelectorAll('.ud-editor').forEach(ed => { contingut = ed.innerHTML; });
+      card.querySelectorAll('.ud-editor').forEach(ed => { contingut = ed.innerText; });
       if (contingut||exercicis) data.sessions.push({idx:i+1,nom,contingut,exercicis,objectius:''});
     });
     return data;
+  }
+
+  // ── NETEJA HTML → TEXT PLA ───────────────────────────────────────
+  function htmlToText(html) {
+    const d = document.createElement('div');
+    d.innerHTML = html;
+    return d.innerText || d.textContent || '';
+  }
+
+  // ── GENERA PPTX ──────────────────────────────────────────────────
+  function generatePptx(data) {
+    const pptx = new window.PptxGenJS();
+    pptx.layout = 'LAYOUT_16x9';
+    pptx.title = data.titol || 'Unitat Didàctica';
+
+    const NAVY   = '1a2744';
+    const GOLD   = 'c8960c';
+    const WHITE  = 'FFFFFF';
+    const LIGHT  = 'f5f4f0';
+    const COLORS = ['1a2744','c1272d','2d6a4f','6d3a8a','b5461e','1a5f7a'];
+
+    // ── PORTADA ──
+    const cover = pptx.addSlide();
+    cover.background = { color: NAVY };
+    cover.addShape(pptx.ShapeType.rect, { x:0, y:0, w:'100%', h:'100%', fill:{ color: NAVY } });
+    // Línia daurada
+    cover.addShape(pptx.ShapeType.rect, { x:0.5, y:4.2, w:0.8, h:0.08, fill:{ color: GOLD } });
+    // Títol
+    cover.addText(data.titol || 'Unitat Didàctica', {
+      x:0.5, y:1.0, w:8.5, h:2.5,
+      fontSize:36, bold:true, color:WHITE,
+      fontFace:'Georgia', valign:'middle', align:'left', wrap:true
+    });
+    // Subtítol
+    const sub = [data.assignatura, data.nivell ? data.nivell+"r d'ESO" : ''].filter(Boolean).join('  ·  ');
+    if (sub) cover.addText(sub, {
+      x:0.5, y:3.8, w:8.5, h:0.4,
+      fontSize:14, color:'aab4c8', align:'left'
+    });
+    // Decret
+    cover.addText('Decret 107/2022 · LOMLOE · Comunitat Valenciana', {
+      x:0.5, y:4.9, w:8.5, h:0.3,
+      fontSize:10, color:'667788', align:'left', italic:true
+    });
+    // Data
+    cover.addText(new Date().toLocaleDateString('ca-ES',{year:'numeric',month:'long',day:'numeric'}), {
+      x:0.5, y:5.3, w:8.5, h:0.3,
+      fontSize:10, color:'556677', align:'left'
+    });
+
+    // ── SESSIÓ: DIAPOSITIVA TÍTOL + CONTINGUT ──
+    data.sessions.forEach((s, i) => {
+      const color = COLORS[i % COLORS.length];
+      const textPlain = htmlToText(s.contingut);
+      const paragrafs = textPlain.split('\n').filter(p => p.trim());
+
+      // Diapositiva de títol de sessió
+      const titleSlide = pptx.addSlide();
+      titleSlide.background = { color: color };
+      // Cercle decoratiu
+      titleSlide.addShape(pptx.ShapeType.ellipse, {
+        x:7.5, y:-1.0, w:3.5, h:3.5,
+        fill:{ color: WHITE, transparency:90 }
+      });
+      // Badge
+      titleSlide.addText(`SESSIÓ ${s.idx}`, {
+        x:0.5, y:1.5, w:3, h:0.35,
+        fontSize:10, bold:true, color:WHITE,
+        align:'left', charSpacing:3
+      });
+      // Títol sessió
+      titleSlide.addText(s.nom, {
+        x:0.5, y:1.9, w:8.5, h:1.5,
+        fontSize:32, bold:true, color:WHITE,
+        fontFace:'Georgia', valign:'top', align:'left', wrap:true
+      });
+      // Objectiu
+      if (s.objectius) {
+        titleSlide.addText(s.objectius, {
+          x:0.5, y:3.6, w:8.5, h:0.8,
+          fontSize:13, color:WHITE, italic:true,
+          align:'left', wrap:true, transparency:20
+        });
+      }
+
+      // Diapositives de contingut (màx 200 paraules per diapositiva)
+      const WORDS_PER_SLIDE = 120;
+      let buffer = [], wordCount = 0;
+      const flushSlide = (paras) => {
+        if (!paras.length) return;
+        const slide = pptx.addSlide();
+        slide.background = { color: LIGHT };
+        // Franja de color al costat esquerre
+        slide.addShape(pptx.ShapeType.rect, {
+          x:0, y:0, w:0.12, h:'100%', fill:{ color: color }
+        });
+        // Nom de la sessió petit
+        slide.addText(s.nom, {
+          x:0.25, y:0.15, w:9, h:0.3,
+          fontSize:9, color:color, bold:true, align:'left', charSpacing:1
+        });
+        // Contingut
+        slide.addText(paras.map(p => ({ text: p+'\n', options:{ fontSize:14, color:'2c2c2c', paraSpaceAfter:6 } })), {
+          x:0.25, y:0.55, w:9.2, h:4.9,
+          valign:'top', align:'left', wrap:true, lineSpacingMultiple:1.3
+        });
+      };
+
+      paragrafs.forEach(p => {
+        const wc = p.split(' ').length;
+        if (wordCount + wc > WORDS_PER_SLIDE && buffer.length) {
+          flushSlide(buffer);
+          buffer = []; wordCount = 0;
+        }
+        buffer.push(p);
+        wordCount += wc;
+      });
+      if (buffer.length) flushSlide(buffer);
+
+      // Diapositiva d'exercicis
+      if (s.exercicis && s.exercicis.trim()) {
+        const exerLines = s.exercicis.split('\n').filter(e => e.trim())
+          .map(e => e.replace(/^\d+[\.\)]\s*/, ''));
+        const exSlide = pptx.addSlide();
+        exSlide.background = { color: LIGHT };
+        exSlide.addShape(pptx.ShapeType.rect, {
+          x:0, y:0, w:0.12, h:'100%', fill:{ color: color }
+        });
+        exSlide.addText('✏️  Exercicis i activitats', {
+          x:0.25, y:0.15, w:9, h:0.4,
+          fontSize:13, bold:true, color:color, align:'left'
+        });
+        const exItems = exerLines.map((e, ei) => [
+          { text:`${ei+1}.  `, options:{ bold:true, color:color, fontSize:13 } },
+          { text:e+'\n', options:{ color:'2c2c2c', fontSize:13, paraSpaceAfter:8 } }
+        ]).flat();
+        exSlide.addText(exItems, {
+          x:0.25, y:0.7, w:9.2, h:4.7,
+          valign:'top', align:'left', wrap:true, lineSpacingMultiple:1.4
+        });
+      }
+    });
+
+    // Descarrega
+    pptx.writeFile({ fileName: (data.titol||'unitat').replace(/[^\w\s\-]/g,'').trim()+'_canva.pptx' });
   }
 
   // ── GENERA HTML DE PRESENTACIÓ ───────────────────────────────────
@@ -63,7 +217,6 @@
     const nivellText = nivell ? `${nivell}r d'ESO` : '';
     const date = new Date().toLocaleDateString('ca-ES', {year:'numeric',month:'long',day:'numeric'});
     const COLORS = ['#1a2744','#c1272d','#2d6a4f','#6d3a8a','#b5461e','#1a5f7a'];
-
     const sessionsHTML = sessions.map((s, i) => {
       const color = COLORS[i % COLORS.length];
       const light = color + '18';
@@ -84,7 +237,6 @@
           ${exHTML?`<div class="exer-box"><div class="exer-hdr">✏️ Exercicis i activitats</div>${exHTML}</div>`:''}
         </div></section>`;
     }).join('');
-
     return `<!DOCTYPE html>
 <html lang="ca"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${titol||'Unitat Didàctica'}</title>
@@ -143,32 +295,67 @@ ${sessionsHTML}
 </body></html>`;
   }
 
-  // ── AFEGEIX EL BOTÓ A header-actions ────────────────────────────
-  function addButton() {
-    if (document.getElementById('ud-pres-btn')) return;
+  // ── MODIFICA LA CAPÇALERA ────────────────────────────────────────
+  function setupHeader() {
     const container = document.querySelector('.header-actions');
     if (!container) return;
 
-    const btn = document.createElement('button');
-    btn.id = 'ud-pres-btn';
-    btn.className = 'btn btn-sm btn-outline header-btn';
-    btn.textContent = '🎨 Presentació';
-    btn.onclick = () => {
-      const data = collectData();
-      if (!data.sessions.length) {
-        alert('Genera el contingut de les sessions primer.');
-        return;
-      }
-      const html = generateHTML(data);
-      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = (data.titol||'unitat').replace(/[^\w\s\-]/g,'').trim()+'_alumnes.html';
-      a.click();
-      URL.revokeObjectURL(url);
-    };
-    container.appendChild(btn);
+    // 1. Elimina el botó "App HTML"
+    container.querySelectorAll('a, button').forEach(el => {
+      if (el.textContent?.includes('App HTML')) el.remove();
+    });
+
+    // 2. Botó HTML Presentació
+    if (!document.getElementById('ud-html-btn')) {
+      const btnHTML = document.createElement('button');
+      btnHTML.id = 'ud-html-btn';
+      btnHTML.className = 'btn btn-sm btn-outline header-btn';
+      btnHTML.textContent = '🌐 HTML Alumnes';
+      btnHTML.onclick = () => {
+        const data = collectData();
+        if (!data.sessions.length) { alert('Genera el contingut de les sessions primer.'); return; }
+        const html = generateHTML(data);
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (data.titol||'unitat').replace(/[^\w\s\-]/g,'').trim()+'_alumnes.html';
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+      container.appendChild(btnHTML);
+    }
+
+    // 3. Botó Canva (PPTX)
+    if (!document.getElementById('ud-canva-btn')) {
+      const btnCanva = document.createElement('button');
+      btnCanva.id = 'ud-canva-btn';
+      btnCanva.className = 'btn btn-sm btn-outline header-btn';
+      btnCanva.textContent = '🎨 Exportar a Canva';
+      btnCanva.style.cssText = 'border-color:#7c3aed;color:#7c3aed';
+      btnCanva.onmouseover = () => { btnCanva.style.background='#7c3aed'; btnCanva.style.color='white'; };
+      btnCanva.onmouseout  = () => { btnCanva.style.background=''; btnCanva.style.color='#7c3aed'; };
+      btnCanva.onclick = () => {
+        const data = collectData();
+        if (!data.sessions.length) { alert('Genera el contingut de les sessions primer.'); return; }
+        btnCanva.textContent = '⏳ Generant...';
+        btnCanva.disabled = true;
+        loadPptxGen(() => {
+          try {
+            generatePptx(data);
+            setTimeout(() => {
+              btnCanva.textContent = '🎨 Exportar a Canva';
+              btnCanva.disabled = false;
+            }, 1500);
+          } catch(e) {
+            alert('Error generant el PPTX: ' + e.message);
+            btnCanva.textContent = '🎨 Exportar a Canva';
+            btnCanva.disabled = false;
+          }
+        });
+      };
+      container.appendChild(btnCanva);
+    }
   }
 
   // ── BARRA D'EINES MEDIA ──────────────────────────────────────────
@@ -196,7 +383,7 @@ ${sessionsHTML}
     .ud-btn-cancel{background:#f3f4f6;color:#374151}
     .ud-btn-ok{background:#1a2744;color:white}
   `;
-  document.head.appendChild(Object.assign(document.createElement('style'), {textContent: css}));
+  document.head.appendChild(Object.assign(document.createElement('style'), {textContent:css}));
 
   function ytId(url) {
     const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
@@ -231,7 +418,7 @@ ${sessionsHTML}
     const bVid=document.createElement('button'); bVid.type='button'; bVid.textContent='▶ Vídeo YouTube';
     bVid.onclick=()=>modal('Inserir vídeo de YouTube',[
       {id:'url',label:'URL del vídeo',ph:'https://www.youtube.com/watch?v=...'},
-      {id:'cap',label:'Títol (opcional)',ph:'Ex: Els instruments de l\'orquestra'},
+      {id:'cap',label:'Títol (opcional)',ph:"Ex: Els instruments de l'orquestra"},
     ],({url,cap})=>{
       if(!url)return; const id=ytId(url);
       if(!id){alert('URL de YouTube no vàlida');return;}
@@ -273,9 +460,8 @@ ${sessionsHTML}
         editor.innerHTML=textarea.value.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')||'<p><br></p>';
       }
     },300);
-    const toolbar=makeToolbar(editor);
     textarea.style.display='none';
-    textarea.parentNode.insertBefore(toolbar,textarea);
+    textarea.parentNode.insertBefore(makeToolbar(editor),textarea);
     textarea.parentNode.insertBefore(editor,textarea);
   }
 
@@ -285,10 +471,9 @@ ${sessionsHTML}
       if(ta.dataset.udDone)return;
       if(parseInt(ta.getAttribute('rows')||0)>=7) convertToEditor(ta);
     });
-    addButton();
+    setupHeader();
   }).observe(document.body,{childList:true,subtree:true});
 
-  // Reintents per assegurar que s'afegeix el botó
-  [500, 1000, 2000, 3000].forEach(t => setTimeout(addButton, t));
+  [500,1000,2000,3000].forEach(t=>setTimeout(setupHeader,t));
 
 })();
