@@ -466,14 +466,22 @@ ${sessionsHTML}
   }
 
   // ── OBSERVADOR ───────────────────────────────────────────────────
-  new MutationObserver(()=>{
-    document.querySelectorAll('textarea').forEach(ta=>{
-      if(ta.dataset.udDone)return;
-      if(parseInt(ta.getAttribute('rows')||0)>=7) convertToEditor(ta);
-    });
-    setupHeader();
-  }).observe(document.body,{childList:true,subtree:true});
+  function init() {
+    new MutationObserver(()=>{
+      document.querySelectorAll('textarea').forEach(ta=>{
+        if(ta.dataset.udDone)return;
+        if(parseInt(ta.getAttribute('rows')||0)>=7) convertToEditor(ta);
+      });
+      setupHeader();
+    }).observe(document.body,{childList:true,subtree:true});
 
-  [500,1000,2000,3000].forEach(t=>setTimeout(setupHeader,t));
+    [500,1000,2000,3000].forEach(t=>setTimeout(setupHeader,t));
+  }
+
+  if (document.body) {
+    init();
+  } else {
+    document.addEventListener('DOMContentLoaded', init);
+  }
 
 })();
