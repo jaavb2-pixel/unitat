@@ -400,8 +400,8 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
             `<div class="ex-row"><div class="ex-n" style="background:${color}">${ei+1}</div><div class="ex-t">${e.replace(/^\d+[\.\)]\s*/,'')}</div></div>`
           ).join('') : '';
       return `<section class="sess" style="--c:${color};--cl:${light}">
-        <div class="sess-hero"><div class="sess-badge">Sessió ${s.idx}</div>
-          <h2 class="sess-title">${s.nom}</h2>
+        <div class="sess-hero">
+          <div class="sess-badge">${s.nom}</div>
           ${s.objectius?`<p class="sess-obj">${s.objectius}</p>`:''}
         </div>
         <div class="sess-body">
@@ -428,7 +428,7 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
 .sess{margin:0 40px 32px;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07)}
 .sess-hero{background:var(--c);padding:26px 34px 22px;color:white;position:relative;overflow:hidden}
 .sess-hero::after{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.08)}
-.sess-badge{display:inline-block;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:100px;padding:3px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px}
+.sess-badge{display:inline-block;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:5px 16px;font-size:14px;font-weight:700;margin-bottom:10px;font-family:'Playfair Display',serif}
 .sess-title{font-family:'Playfair Display',serif;font-size:clamp(18px,3vw,26px);font-weight:700;line-height:1.2;margin-bottom:6px}
 .sess-obj{font-size:13px;color:rgba(255,255,255,.8);font-style:italic;margin-top:6px}
 .sess-body{padding:30px 34px}
@@ -462,7 +462,6 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
 @media print{body{background:white}.sess{box-shadow:none;break-inside:avoid}.sa-section{break-inside:avoid}}
 </style></head><body>
 <div class="cover">
-  <div class="cover-meta">Decret 107/2022 · LOMLOE · Comunitat Valenciana</div>
   <h1 class="cover-title">${titol||'Unitat Didàctica'}</h1>
   <div class="cover-line"></div>
   <div class="cover-pills">
@@ -478,7 +477,7 @@ ${data.sa && Object.values(data.sa).some(v=>v) ? `
   <div class="sa-header">
     <div class="sa-icon">🎯</div>
     <div>
-      <div class="sa-label">Situació d'Aprenentatge · LOMLOE Art. 2</div>
+      <div class="sa-label">Situació d'Aprenentatge</div>
       <h2 class="sa-title">${data.sa.titolSA || ''}</h2>
     </div>
   </div>
@@ -491,7 +490,7 @@ ${data.sa && Object.values(data.sa).some(v=>v) ? `
     ${data.sa.temporitzacio?`<div class="sa-item"><div class="sa-item-label">🕐 Temporització</div><p>${data.sa.temporitzacio}</p></div>`:''}
   </div>
 </div>` : ''}
-<div class="footer">Material didàctic · Decret 107/2022 · Comunitat Valenciana</div>
+${sessionsHTML}
 </body></html>`;
   }
 
