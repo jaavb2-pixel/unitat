@@ -1,167 +1,93 @@
 (function () {
 
   // ── ACCÉS A L'ESTAT DE REACT ─────────────────────────────────────
-  function getReactState(el) {
-    const key = Object.keys(el).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternals'));
-    if (!key) return null;
-    let fiber = el[key];
-    while (fiber) {
-      const state = fiber.memoizedState;
-      if (state && state.memoizedState && Array.isArray(state.memoizedState.sessions)) {
-        return state.memoizedState;
-      }
-      if (state && Array.isArray(state.queue?.lastRenderedState?.sessions)) {
-        return state.queue.lastRenderedState;
-      }
-      // Recorrem l'arbre de fibres
-      if (fiber.memoizedState) {
-        let s = fiber.memoizedState;
-        while (s) {
-          if (s.memoizedState && typeof s.memoizedState === 'object' && Array.isArray(s.memoizedState.sessions)) {
-            return s.memoizedState;
-          }
-          s = s.next;
-        }
-      }
-      fiber = fiber.return;
-    }
-    return null;
-  }
-
   function getAppState() {
     const root = document.getElementById('root');
     if (!root) return null;
-    const key = Object.keys(root).find(k => k.startsWith('__reactFiber') || k.startsWith('_reactRootContainer'));
-    if (!key) return null;
-
-    // Cerquem en totes les fibres
-    function searchFiber(fiber, depth = 0) {
-      if (!fiber || depth > 50) return null;
-      // Comprova memoizedState
+    function searchFiber(fiber, depth) {
+      if (!fiber || depth > 60) return null;
       let s = fiber.memoizedState;
       while (s) {
-        const val = s.memoizedState;
-        if (val && typeof val === 'object' && !Array.isArray(val) && Array.isArray(val.sessions)) {
-          return val;
-        }
+        const v = s.memoizedState;
+        if (v && typeof v === 'object' && !Array.isArray(v) && Array.isArray(v.sessions)) return v;
         s = s.next;
       }
-      // Prova fills i germans
-      const fromChild = searchFiber(fiber.child, depth + 1);
-      if (fromChild) return fromChild;
-      const fromSibling = depth < 3 ? searchFiber(fiber.sibling, depth + 1) : null;
-      if (fromSibling) return fromSibling;
-      return null;
+      return searchFiber(fiber.child, depth+1) || (depth < 4 ? searchFiber(fiber.sibling, depth+1) : null);
     }
-
-    const rootFiber = root[key]?.current || root[key];
-    return searchFiber(rootFiber);
-  }
-
-  // ── LLEGEIX DADES DEL DOM COM A FALLBACK ─────────────────────────
-  function readFromDOM() {
-    const data = { titol: '', assignatura: '', nivell: '', justificacio: '', sessions: [] };
-
-    document.querySelectorAll('input[type=text]').forEach(inp => {
-      const lbl = inp.closest('div')?.querySelector('label')?.textContent?.toLowerCase() || '';
-      if (lbl.includes('títol') || lbl.includes('titol')) data.titol = inp.value;
-    });
-    document.querySelectorAll('select').forEach(sel => {
-      const lbl = sel.closest('div')?.querySelector('label')?.textContent?.toLowerCase() || '';
-      if (lbl.includes('assignatura')) data.assignatura = sel.options[sel.selectedIndex]?.text || '';
-      if (lbl.includes('nivell')) data.nivell = sel.value;
-    });
-    document.querySelectorAll('textarea').forEach(ta => {
-      const lbl = ta.closest('div')?.querySelector('label')?.textContent?.toLowerCase() || '';
-      if (lbl.includes('justific')) data.justificacio = ta.value;
-    });
-
-    document.querySelectorAll('.session-card').forEach((card, i) => {
-      const nom = card.querySelector('.session-header input[type=text]')?.value || `Sessió ${i + 1}`;
-      let contingut = '', exercicis = '', objectius = '';
-      card.querySelectorAll('textarea').forEach(ta => {
-        const rows = parseInt(ta.getAttribute('rows') || '0');
-        const lbl = ta.closest('div')?.querySelector('label')?.textContent?.toLowerCase() || '';
-        if (rows === 8 || lbl.includes('contingut') || lbl.includes('alumne')) contingut = ta.value;
-        else if (rows === 6 || lbl.includes('exercici')) exercicis = ta.value;
-        else if (lbl.includes('objectiu')) objectius = ta.value;
-      });
-      // Editor enriquit
-      card.querySelectorAll('.ud-editor').forEach(ed => {
-        contingut = ed.innerHTML;
-      });
-      if (contingut || exercicis) {
-        data.sessions.push({ nom, contingut, exercicis, objectius, idx: i + 1 });
-      }
-    });
-
-    return data;
+    const key = Object.keys(root).find(k => k.startsWith('__reactFiber') || k.startsWith('_reactRootContainer'));
+    if (!key) return null;
+    return searchFiber(root[key]?.current || root[key], 0);
   }
 
   function collectData() {
-    // Primer intentem React state
-    const reactState = getAppState();
-    if (reactState && reactState.sessions?.length) {
-      const sessions = reactState.sessions
-        .filter(s => s.contingutAlumne || s.exercicis)
-        .map((s, i) => ({
-          idx: i + 1,
-          nom: s.nom || `Sessió ${i + 1}`,
-          contingut: s.contingutAlumne || '',
-          exercicis: s.exercicis || '',
-          objectius: s.objectiusOperatius || ''
-        }));
+    const rs = getAppState();
+    if (rs && rs.sessions?.length) {
       return {
-        titol: reactState.titol || '',
-        assignatura: reactState.assignatura || '',
-        nivell: reactState.nivell || '',
-        justificacio: reactState.justificacio || '',
-        sessions
+        titol: rs.titol || '',
+        assignatura: rs.assignatura || '',
+        nivell: rs.nivell || '',
+        justificacio: rs.justificacio || '',
+        sessions: rs.sessions
+          .filter(s => s.contingutAlumne || s.exercicis)
+          .map((s, i) => ({
+            idx: i + 1,
+            nom: s.nom || `Sessió ${i+1}`,
+            contingut: s.contingutAlumne || '',
+            exercicis: s.exercicis || '',
+            objectius: s.objectiusOperatius || ''
+          }))
       };
     }
-    // Fallback: DOM
-    return readFromDOM();
+    // Fallback DOM
+    const data = { titol:'', assignatura:'', nivell:'', justificacio:'', sessions:[] };
+    document.querySelectorAll('input[type=text]').forEach(inp => {
+      const lbl = inp.closest('div')?.querySelector('label')?.textContent?.toLowerCase()||'';
+      if (lbl.includes('títol')||lbl.includes('titol')) data.titol = inp.value;
+    });
+    document.querySelectorAll('.session-card').forEach((card, i) => {
+      const nom = card.querySelector('.session-header input[type=text]')?.value || `Sessió ${i+1}`;
+      let contingut='', exercicis='';
+      card.querySelectorAll('textarea').forEach(ta => {
+        if (parseInt(ta.getAttribute('rows')||0) === 8) contingut = ta.value;
+        if (parseInt(ta.getAttribute('rows')||0) === 6) exercicis = ta.value;
+      });
+      card.querySelectorAll('.ud-editor').forEach(ed => { contingut = ed.innerHTML; });
+      if (contingut||exercicis) data.sessions.push({idx:i+1,nom,contingut,exercicis,objectius:''});
+    });
+    return data;
   }
 
-  // ── GENERA L'HTML DE PRESENTACIÓ ────────────────────────────────
+  // ── GENERA HTML DE PRESENTACIÓ ───────────────────────────────────
   function generateHTML(data) {
     const { titol, assignatura, nivell, justificacio, sessions } = data;
     const nivellText = nivell ? `${nivell}r d'ESO` : '';
-    const date = new Date().toLocaleDateString('ca-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+    const date = new Date().toLocaleDateString('ca-ES', {year:'numeric',month:'long',day:'numeric'});
     const COLORS = ['#1a2744','#c1272d','#2d6a4f','#6d3a8a','#b5461e','#1a5f7a'];
 
     const sessionsHTML = sessions.map((s, i) => {
       const color = COLORS[i % COLORS.length];
       const light = color + '18';
-      let contingutHTML = s.contingut;
-      if (!s.contingut.includes('<')) {
-        contingutHTML = s.contingut.split('\n').filter(p => p.trim()).map(p => `<p>${p}</p>`).join('');
-      }
-      const exercicisHTML = s.exercicis
-        ? s.exercicis.split('\n').filter(e => e.trim()).map((e, ei) =>
+      let cHTML = s.contingut;
+      if (!s.contingut.includes('<'))
+        cHTML = s.contingut.split('\n').filter(p=>p.trim()).map(p=>`<p>${p}</p>`).join('');
+      const exHTML = s.exercicis
+        ? s.exercicis.split('\n').filter(e=>e.trim()).map((e,ei)=>
             `<div class="ex-row"><div class="ex-n" style="background:${color}">${ei+1}</div><div class="ex-t">${e.replace(/^\d+[\.\)]\s*/,'')}</div></div>`
-          ).join('')
-        : '';
-      return `
-      <section class="sess" style="--c:${color};--cl:${light}">
-        <div class="sess-hero">
-          <div class="sess-badge">Sessió ${s.idx}</div>
+          ).join('') : '';
+      return `<section class="sess" style="--c:${color};--cl:${light}">
+        <div class="sess-hero"><div class="sess-badge">Sessió ${s.idx}</div>
           <h2 class="sess-title">${s.nom}</h2>
-          ${s.objectius ? `<p class="sess-obj">${s.objectius}</p>` : ''}
+          ${s.objectius?`<p class="sess-obj">${s.objectius}</p>`:''}
         </div>
         <div class="sess-body">
-          <div class="sess-text">${contingutHTML}</div>
-          ${exercicisHTML ? `<div class="exer-box"><div class="exer-hdr">✏️ Exercicis i activitats</div>${exercicisHTML}</div>` : ''}
-        </div>
-      </section>`;
+          <div class="sess-text">${cHTML}</div>
+          ${exHTML?`<div class="exer-box"><div class="exer-hdr">✏️ Exercicis i activitats</div>${exHTML}</div>`:''}
+        </div></section>`;
     }).join('');
 
     return `<!DOCTYPE html>
-<html lang="ca">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${titol || 'Unitat Didàctica'}</title>
+<html lang="ca"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${titol||'Unitat Didàctica'}</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -183,7 +109,6 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
 .sess-obj{font-size:13px;color:rgba(255,255,255,.8);font-style:italic;margin-top:6px}
 .sess-body{padding:30px 34px}
 .sess-text p{margin-bottom:13px;font-size:15px;color:#2c2c2c;line-height:1.8}
-.sess-text p:last-child{margin-bottom:0}
 .sess-text iframe{width:100%;height:220px;border:none;border-radius:10px;margin:14px 0;display:block}
 .sess-text img{max-width:100%;border-radius:10px;margin:12px 0;display:block}
 .ud-video-wrap{margin:14px 0;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0}
@@ -195,67 +120,43 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
 .exer-box{margin-top:26px;background:var(--cl);border-radius:12px;padding:18px 22px;border-left:4px solid var(--c)}
 .exer-hdr{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--c);margin-bottom:14px}
 .ex-row{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
-.ex-row:last-child{margin-bottom:0}
 .ex-n{min-width:26px;height:26px;border-radius:50%;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px}
 .ex-t{font-size:15px;color:#2c2c2c;line-height:1.6;flex:1}
 .footer{text-align:center;padding:22px;font-size:11px;color:#bbb;letter-spacing:.5px;text-transform:uppercase;border-top:1px solid #e8e6e0;margin:0 40px}
 @media(max-width:600px){.cover{padding:28px 20px 24px}.sess,.just,.footer{margin-left:12px;margin-right:12px}.sess-hero{padding:18px 18px 14px}.sess-body{padding:20px 18px}}
-@media print{body{background:white}.sess{box-shadow:none;break-inside:avoid}.cover{min-height:200px}}
-</style>
-</head>
-<body>
+@media print{body{background:white}.sess{box-shadow:none;break-inside:avoid}}
+</style></head><body>
 <div class="cover">
   <div class="cover-meta">Decret 107/2022 · LOMLOE · Comunitat Valenciana</div>
-  <h1 class="cover-title">${titol || 'Unitat Didàctica'}</h1>
+  <h1 class="cover-title">${titol||'Unitat Didàctica'}</h1>
   <div class="cover-line"></div>
   <div class="cover-pills">
-    ${assignatura ? `<span class="cover-pill">${assignatura}</span>` : ''}
-    ${nivellText ? `<span class="cover-pill">${nivellText}</span>` : ''}
+    ${assignatura?`<span class="cover-pill">${assignatura}</span>`:''}
+    ${nivellText?`<span class="cover-pill">${nivellText}</span>`:''}
     <span class="cover-pill">${sessions.length} sessions</span>
   </div>
   <div class="cover-date">${date}</div>
 </div>
-${justificacio ? `<div class="just">${justificacio}</div>` : ''}
+${justificacio?`<div class="just">${justificacio}</div>`:''}
 ${sessionsHTML}
 <div class="footer">Material didàctic · Decret 107/2022 · Comunitat Valenciana</div>
 </body></html>`;
   }
 
-  // ── AFEGEIX BOTÓ NOU EN COMPTES D'INTERCEPTAR ───────────────────
-  // Més fiable que intentar interceptar el botó de React
-  function addExportButton() {
-    if (document.getElementById('ud-export-btn')) return;
-
-    const existingBtn = Array.from(document.querySelectorAll('button, a')).find(el => {
-      const txt = el.textContent?.trim() || '';
-      return txt.includes('⬇️ HTML') && !txt.includes('App');
-    });
-
-    if (!existingBtn) return;
+  // ── AFEGEIX EL BOTÓ A header-actions ────────────────────────────
+  function addButton() {
+    if (document.getElementById('ud-pres-btn')) return;
+    const container = document.querySelector('.header-actions');
+    if (!container) return;
 
     const btn = document.createElement('button');
-    btn.id = 'ud-export-btn';
-    btn.textContent = '🎨 HTML Presentació';
-    btn.style.cssText = `
-      padding: 6px 14px;
-      border: 1.5px solid #c8960c;
-      border-radius: 8px;
-      background: #fef9eb;
-      color: #7a5c00;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-      margin-left: 6px;
-      transition: all 0.15s;
-    `;
-    btn.onmouseover = () => { btn.style.background = '#c8960c'; btn.style.color = 'white'; };
-    btn.onmouseout = () => { btn.style.background = '#fef9eb'; btn.style.color = '#7a5c00'; };
-
+    btn.id = 'ud-pres-btn';
+    btn.className = 'btn btn-sm btn-outline header-btn';
+    btn.textContent = '🎨 Presentació';
     btn.onclick = () => {
       const data = collectData();
       if (!data.sessions.length) {
-        alert('No hi ha contingut generat. Genera les sessions primer amb la IA.');
+        alert('Genera el contingut de les sessions primer.');
         return;
       }
       const html = generateHTML(data);
@@ -263,18 +164,17 @@ ${sessionsHTML}
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = (data.titol || 'unitat').replace(/[^\w\s\-]/g, '').trim() + '_alumnes.html';
+      a.download = (data.titol||'unitat').replace(/[^\w\s\-]/g,'').trim()+'_alumnes.html';
       a.click();
       URL.revokeObjectURL(url);
     };
-
-    existingBtn.parentNode.insertBefore(btn, existingBtn.nextSibling);
+    container.appendChild(btn);
   }
 
   // ── BARRA D'EINES MEDIA ──────────────────────────────────────────
   const css = `
     .ud-toolbar{display:flex;gap:6px;flex-wrap:wrap;padding:6px 10px;background:#f0f4ff;border:1.5px solid #c8d0e8;border-bottom:none;border-radius:8px 8px 0 0}
-    .ud-toolbar button{padding:5px 12px;border:1px solid #c8d0e8;border-radius:6px;background:white;font-size:12px;font-family:inherit;cursor:pointer;color:#1a2744;font-weight:600;transition:background 0.15s}
+    .ud-toolbar button{padding:5px 12px;border:1px solid #c8d0e8;border-radius:6px;background:white;font-size:12px;font-family:inherit;cursor:pointer;color:#1a2744;font-weight:600}
     .ud-toolbar button:hover{background:#e0e8ff}
     .ud-editor{width:100%;min-height:220px;padding:12px;border:1.5px solid #c8d0e8;border-radius:0 0 8px 8px;font-family:inherit;font-size:14px;line-height:1.8;outline:none;background:#fffdf5;overflow-y:auto}
     .ud-editor:focus{border-color:#1a2744;box-shadow:0 0 0 3px #1a274414}
@@ -296,46 +196,40 @@ ${sessionsHTML}
     .ud-btn-cancel{background:#f3f4f6;color:#374151}
     .ud-btn-ok{background:#1a2744;color:white}
   `;
-  const styleEl = document.createElement('style');
-  styleEl.textContent = css;
-  document.head.appendChild(styleEl);
+  document.head.appendChild(Object.assign(document.createElement('style'), {textContent: css}));
 
   function ytId(url) {
     const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
     return m ? m[1] : null;
   }
-
   function modal(title, fields, onOk) {
-    const bg = document.createElement('div');
-    bg.className = 'ud-modal-bg';
-    bg.innerHTML = `<div class="ud-modal"><h3>${title}</h3>${fields.map(f=>`<label>${f.label}</label><input id="udf-${f.id}" placeholder="${f.ph}">`).join('')}<div class="ud-modal-btns"><button class="ud-btn-cancel">Cancel·lar</button><button class="ud-btn-ok">Inserir</button></div></div>`;
+    const bg = document.createElement('div'); bg.className='ud-modal-bg';
+    bg.innerHTML=`<div class="ud-modal"><h3>${title}</h3>${fields.map(f=>`<label>${f.label}</label><input id="udf-${f.id}" placeholder="${f.ph}">`).join('')}<div class="ud-modal-btns"><button class="ud-btn-cancel">Cancel·lar</button><button class="ud-btn-ok">Inserir</button></div></div>`;
     document.body.appendChild(bg);
-    bg.querySelector('.ud-btn-cancel').onclick = () => bg.remove();
-    bg.querySelector('.ud-btn-ok').onclick = () => {
-      const vals = Object.fromEntries(fields.map(f=>[f.id, document.getElementById('udf-'+f.id).value.trim()]));
+    bg.querySelector('.ud-btn-cancel').onclick=()=>bg.remove();
+    bg.querySelector('.ud-btn-ok').onclick=()=>{
+      const vals=Object.fromEntries(fields.map(f=>[f.id,document.getElementById('udf-'+f.id).value.trim()]));
       bg.remove(); onOk(vals);
     };
-    bg.onclick = e => { if (e.target===bg) bg.remove(); };
-    setTimeout(()=>document.getElementById('udf-'+fields[0].id)?.focus(), 50);
+    bg.onclick=e=>{if(e.target===bg)bg.remove();};
+    setTimeout(()=>document.getElementById('udf-'+fields[0].id)?.focus(),50);
   }
-
   function insertHTML(editor, html) {
     editor.focus();
-    const sel = window.getSelection();
-    if (editor.contains(sel.anchorNode) && sel.rangeCount) {
-      const range = sel.getRangeAt(0); range.deleteContents();
-      const tpl = document.createElement('div'); tpl.innerHTML = html;
-      const frag = document.createDocumentFragment(); let last;
-      while (tpl.firstChild) last = frag.appendChild(tpl.firstChild);
+    const sel=window.getSelection();
+    if(editor.contains(sel.anchorNode)&&sel.rangeCount){
+      const range=sel.getRangeAt(0); range.deleteContents();
+      const tpl=document.createElement('div'); tpl.innerHTML=html;
+      const frag=document.createDocumentFragment(); let last;
+      while(tpl.firstChild) last=frag.appendChild(tpl.firstChild);
       range.insertNode(frag);
-      if (last) { const r=range.cloneRange(); r.setStartAfter(last); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
-    } else { editor.innerHTML += html; }
+      if(last){const r=range.cloneRange();r.setStartAfter(last);r.collapse(true);sel.removeAllRanges();sel.addRange(r);}
+    } else { editor.innerHTML+=html; }
   }
-
   function makeToolbar(editor) {
-    const bar = document.createElement('div'); bar.className = 'ud-toolbar';
-    const bVid = document.createElement('button'); bVid.type='button'; bVid.textContent='▶ Vídeo YouTube';
-    bVid.onclick = () => modal('Inserir vídeo de YouTube',[
+    const bar=document.createElement('div'); bar.className='ud-toolbar';
+    const bVid=document.createElement('button'); bVid.type='button'; bVid.textContent='▶ Vídeo YouTube';
+    bVid.onclick=()=>modal('Inserir vídeo de YouTube',[
       {id:'url',label:'URL del vídeo',ph:'https://www.youtube.com/watch?v=...'},
       {id:'cap',label:'Títol (opcional)',ph:'Ex: Els instruments de l\'orquestra'},
     ],({url,cap})=>{
@@ -343,16 +237,16 @@ ${sessionsHTML}
       if(!id){alert('URL de YouTube no vàlida');return;}
       insertHTML(editor,`<div class="ud-video-wrap" contenteditable="false"><iframe src="https://www.youtube.com/embed/${id}" allowfullscreen></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`);
     });
-    const bImg = document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
-    bImg.onclick = () => modal('Inserir imatge',[
+    const bImg=document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
+    bImg.onclick=()=>modal('Inserir imatge',[
       {id:'url',label:'URL de la imatge',ph:'https://...'},
       {id:'cap',label:'Peu de foto (opcional)',ph:''},
     ],({url,cap})=>{
       if(!url)return;
       insertHTML(editor,`<div class="ud-img-wrap" contenteditable="false"><img src="${url}" alt="${cap}">${cap?`<div class="ud-img-caption">${cap}</div>`:''}</div><p><br></p>`);
     });
-    const bLink = document.createElement('button'); bLink.type='button'; bLink.textContent='🔗 Enllaç';
-    bLink.onclick = () => modal('Inserir enllaç',[
+    const bLink=document.createElement('button'); bLink.type='button'; bLink.textContent='🔗 Enllaç';
+    bLink.onclick=()=>modal('Inserir enllaç',[
       {id:'url',label:'URL',ph:'https://...'},
       {id:'txt',label:'Text',ph:'Ex: Més informació'},
     ],({url,txt})=>{
@@ -362,41 +256,39 @@ ${sessionsHTML}
     bar.appendChild(bVid); bar.appendChild(bImg); bar.appendChild(bLink);
     return bar;
   }
-
   function convertToEditor(textarea) {
-    if (textarea.dataset.udDone) return;
-    textarea.dataset.udDone = 'true';
-    const editor = document.createElement('div');
-    editor.className = 'ud-editor'; editor.contentEditable = 'true';
-    const init = textarea.value;
-    editor.innerHTML = init ? init.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('') : '<p><br></p>';
-    editor.addEventListener('input', () => {
-      textarea.value = editor.innerText;
+    if(textarea.dataset.udDone)return; textarea.dataset.udDone='true';
+    const editor=document.createElement('div'); editor.className='ud-editor'; editor.contentEditable='true';
+    const init=textarea.value;
+    editor.innerHTML=init?init.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join(''):'<p><br></p>';
+    editor.addEventListener('input',()=>{
+      textarea.value=editor.innerText;
       textarea.dispatchEvent(new Event('input',{bubbles:true}));
       textarea.dispatchEvent(new Event('change',{bubbles:true}));
     });
-    let lastVal = textarea.value;
-    setInterval(() => {
-      if (textarea.value !== lastVal && textarea.value !== editor.innerText) {
-        lastVal = textarea.value;
-        editor.innerHTML = textarea.value.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('') || '<p><br></p>';
+    let lastVal=textarea.value;
+    setInterval(()=>{
+      if(textarea.value!==lastVal&&textarea.value!==editor.innerText){
+        lastVal=textarea.value;
+        editor.innerHTML=textarea.value.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')||'<p><br></p>';
       }
-    }, 300);
-    const toolbar = makeToolbar(editor);
-    textarea.style.display = 'none';
-    textarea.parentNode.insertBefore(toolbar, textarea);
-    textarea.parentNode.insertBefore(editor, textarea);
+    },300);
+    const toolbar=makeToolbar(editor);
+    textarea.style.display='none';
+    textarea.parentNode.insertBefore(toolbar,textarea);
+    textarea.parentNode.insertBefore(editor,textarea);
   }
 
   // ── OBSERVADOR ───────────────────────────────────────────────────
-  new MutationObserver(() => {
-    document.querySelectorAll('textarea').forEach(ta => {
-      if (ta.dataset.udDone) return;
-      if (parseInt(ta.getAttribute('rows')||'0') >= 7) convertToEditor(ta);
+  new MutationObserver(()=>{
+    document.querySelectorAll('textarea').forEach(ta=>{
+      if(ta.dataset.udDone)return;
+      if(parseInt(ta.getAttribute('rows')||0)>=7) convertToEditor(ta);
     });
-    addExportButton();
-  }).observe(document.body, { childList: true, subtree: true });
+    addButton();
+  }).observe(document.body,{childList:true,subtree:true});
 
-  setTimeout(addExportButton, 2000);
+  // Reintents per assegurar que s'afegeix el botó
+  [500, 1000, 2000, 3000].forEach(t => setTimeout(addButton, t));
 
 })();
