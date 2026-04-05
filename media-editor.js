@@ -433,8 +433,10 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
 .sess-obj{font-size:13px;color:rgba(255,255,255,.8);font-style:italic;margin-top:6px}
 .sess-body{padding:30px 34px}
 .sess-text p{margin-bottom:13px;font-size:15px;color:#2c2c2c;line-height:1.8}
-.sess-text iframe{width:100%;height:220px;border:none;border-radius:10px;margin:14px 0;display:block}
-.sess-text img{max-width:100%;border-radius:10px;margin:12px 0;display:block}
+.sess-text p:last-child{margin-bottom:0}
+.sess-text::after{content:'';display:table;clear:both}
+.sess-text img{border-radius:8px;border:1px solid #e4e8f0}
+.sess-text iframe{width:100%;height:220px;border:none;border-radius:10px;margin:14px 0;display:block;clear:both}
 .ud-video-wrap{margin:14px 0;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0}
 .ud-video-wrap iframe{width:100%;height:220px;border:none;display:block}
 .ud-video-caption{background:#1a2744;color:white;font-size:12px;padding:5px 12px;text-align:center}
@@ -600,6 +602,100 @@ ${sessionsHTML}
     bg.onclick=e=>{if(e.target===bg)bg.remove();};
     setTimeout(()=>document.getElementById('udf-'+fields[0].id)?.focus(),50);
   }
+
+  // Modal avançat per a imatges
+  function imageModal(onOk) {
+    const bg = document.createElement('div'); bg.className='ud-modal-bg';
+    bg.innerHTML=`
+    <div class="ud-modal" style="max-width:500px">
+      <h3>Inserir imatge</h3>
+      <label>URL de la imatge</label>
+      <input id="udf-img-url" placeholder="https://upload.wikimedia.org/..." style="margin-bottom:6px">
+      <label>Peu de foto (opcional)</label>
+      <input id="udf-img-cap" placeholder="Ex: Violí barroc, segle XVIII" style="margin-bottom:14px">
+      <label>Posició</label>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="img-pos-btn active" data-pos="center" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #1a2744;background:#eef2ff;cursor:pointer;font-size:12px;font-weight:600;color:#1a2744">
+          ↕ Centrada<br><span style="font-weight:400;font-size:11px">Text dalt i baix</span>
+        </button>
+        <button class="img-pos-btn" data-pos="left" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#555">
+          ← Esquerra<br><span style="font-weight:400;font-size:11px">Text a la dreta</span>
+        </button>
+        <button class="img-pos-btn" data-pos="right" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#555">
+          Dreta →<br><span style="font-weight:400;font-size:11px">Text a l'esquerra</span>
+        </button>
+      </div>
+      <label>Mida</label>
+      <div style="display:flex;gap:8px;margin-bottom:18px">
+        <button class="img-size-btn" data-size="25" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#555">Petita<br><span style="font-weight:400;font-size:11px">25%</span></button>
+        <button class="img-size-btn active" data-size="40" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #1a2744;background:#eef2ff;cursor:pointer;font-size:12px;font-weight:600;color:#1a2744">Mitjana<br><span style="font-weight:400;font-size:11px">40%</span></button>
+        <button class="img-size-btn" data-size="60" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#555">Gran<br><span style="font-weight:400;font-size:11px">60%</span></button>
+        <button class="img-size-btn" data-size="100" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#555">Completa<br><span style="font-weight:400;font-size:11px">100%</span></button>
+      </div>
+      <div class="ud-modal-btns">
+        <button class="ud-btn-cancel">Cancel·lar</button>
+        <button class="ud-btn-ok">Inserir imatge</button>
+      </div>
+    </div>`;
+    document.body.appendChild(bg);
+
+    let selPos = 'center', selSize = '40';
+
+    // Botons posició
+    bg.querySelectorAll('.img-pos-btn').forEach(btn => {
+      btn.onclick = () => {
+        selPos = btn.dataset.pos;
+        bg.querySelectorAll('.img-pos-btn').forEach(b => {
+          b.style.border='1.5px solid #ddd'; b.style.background='white'; b.style.color='#555';
+        });
+        btn.style.border='1.5px solid #1a2744'; btn.style.background='#eef2ff'; btn.style.color='#1a2744';
+      };
+    });
+
+    // Botons mida
+    bg.querySelectorAll('.img-size-btn').forEach(btn => {
+      btn.onclick = () => {
+        selSize = btn.dataset.size;
+        bg.querySelectorAll('.img-size-btn').forEach(b => {
+          b.style.border='1.5px solid #ddd'; b.style.background='white'; b.style.color='#555';
+        });
+        btn.style.border='1.5px solid #1a2744'; btn.style.background='#eef2ff'; btn.style.color='#1a2744';
+      };
+    });
+
+    bg.querySelector('.ud-btn-cancel').onclick = () => bg.remove();
+    bg.querySelector('.ud-btn-ok').onclick = () => {
+      const url = document.getElementById('udf-img-url').value.trim();
+      const cap = document.getElementById('udf-img-cap').value.trim();
+      bg.remove();
+      if (url) onOk({ url, cap, pos: selPos, size: selSize });
+    };
+    bg.onclick = e => { if (e.target===bg) bg.remove(); };
+    setTimeout(() => document.getElementById('udf-img-url')?.focus(), 50);
+  }
+
+  function buildImageHTML(url, cap, pos, size) {
+    const sz = size || '40';
+    const floatStyle = pos === 'left'
+      ? `float:left;margin:0 18px 12px 0;`
+      : pos === 'right'
+      ? `float:right;margin:0 0 12px 18px;`
+      : `display:block;margin:14px auto;`;
+    const wrapStyle = pos === 'center'
+      ? `text-align:center;clear:both;margin:14px 0;`
+      : `overflow:hidden;margin:4px 0 12px;`;
+    if (pos === 'center') {
+      return `<div class="ud-img-wrap" style="${wrapStyle}" contenteditable="false">
+        <img src="${url}" alt="${cap}" style="max-width:${sz}%;border-radius:8px;border:1px solid #e4e8f0;">
+        ${cap?`<div class="ud-img-caption">${cap}</div>`:''}
+      </div>`;
+    }
+    return `<div style="${wrapStyle}" contenteditable="false">
+      <img src="${url}" alt="${cap}" style="width:${sz}%;${floatStyle}border-radius:8px;border:1px solid #e4e8f0;">
+      ${cap?`<div style="font-size:11px;color:#888;text-align:${pos};font-style:italic;margin-top:3px">${cap}</div>`:''}
+    </div><p style="clear:none"><br></p>`;
+  }
+
   function insertHTML(editor, html) {
     editor.focus();
     const sel=window.getSelection();
@@ -612,8 +708,10 @@ ${sessionsHTML}
       if(last){const r=range.cloneRange();r.setStartAfter(last);r.collapse(true);sel.removeAllRanges();sel.addRange(r);}
     } else { editor.innerHTML+=html; }
   }
+
   function makeToolbar(editor) {
     const bar=document.createElement('div'); bar.className='ud-toolbar';
+
     const bVid=document.createElement('button'); bVid.type='button'; bVid.textContent='▶ Vídeo YouTube';
     bVid.onclick=()=>modal('Inserir vídeo de YouTube',[
       {id:'url',label:'URL del vídeo',ph:'https://www.youtube.com/watch?v=...'},
@@ -623,14 +721,12 @@ ${sessionsHTML}
       if(!id){alert('URL de YouTube no vàlida');return;}
       insertHTML(editor,`<div class="ud-video-wrap" contenteditable="false"><iframe src="https://www.youtube.com/embed/${id}" allowfullscreen></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`);
     });
+
     const bImg=document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
-    bImg.onclick=()=>modal('Inserir imatge',[
-      {id:'url',label:'URL de la imatge',ph:'https://...'},
-      {id:'cap',label:'Peu de foto (opcional)',ph:''},
-    ],({url,cap})=>{
-      if(!url)return;
-      insertHTML(editor,`<div class="ud-img-wrap" contenteditable="false"><img src="${url}" alt="${cap}">${cap?`<div class="ud-img-caption">${cap}</div>`:''}</div><p><br></p>`);
+    bImg.onclick=()=>imageModal(({url,cap,pos,size})=>{
+      insertHTML(editor, buildImageHTML(url,cap,pos,size));
     });
+
     const bLink=document.createElement('button'); bLink.type='button'; bLink.textContent='🔗 Enllaç';
     bLink.onclick=()=>modal('Inserir enllaç',[
       {id:'url',label:'URL',ph:'https://...'},
@@ -639,6 +735,7 @@ ${sessionsHTML}
       if(!url)return;
       insertHTML(editor,`<a href="${url}" target="_blank" style="color:#1a2744;font-weight:600;text-decoration:underline">${txt||url}</a> `);
     });
+
     bar.appendChild(bVid); bar.appendChild(bImg); bar.appendChild(bLink);
     return bar;
   }
