@@ -416,36 +416,58 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
     const nivellText = nivell ? `${nivell}r d'ESO` : '';
     const date = new Date().toLocaleDateString('ca-ES', {year:'numeric',month:'long',day:'numeric'});
     const COLORS = ['#1a2744','#c1272d','#2d6a4f','#6d3a8a','#b5461e','#1a5f7a'];
-    const sessionsHTML = sessions.map((s, i) => {
+
+    const cleanHTML = (html) => {
+      if (!html) return '';
+      if (!html.includes('<')) return html.split('\n').filter(p=>p.trim()).map(p=>`<p>${p}</p>`).join('');
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      tmp.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+      tmp.querySelectorAll('[data-ud-img],[data-ud-link]').forEach(el=>el.removeAttribute('data-ud-img')||el.removeAttribute('data-ud-link'));
+      // Corregim URLs de youtube-nocookie per a l'exportació
+      tmp.querySelectorAll('iframe[src*="youtube"]').forEach(fr=>{
+        fr.src = fr.src.replace('youtube.com/embed','youtube-nocookie.com/embed');
+        fr.setAttribute('allow','accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture');
+      });
+      return tmp.innerHTML;
+    };
+
+    const tabBtns = sessions.map((s,i)=>
+      `<button class="tab-btn${i===0?' act':''}" onclick="showTab(${i})" style="padding:10px 18px;border:none;background:${i===0?COLORS[0]:'transparent'};color:${i===0?'white':'#555'};cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;border-bottom:3px solid ${i===0?COLORS[0]:'transparent'};transition:all .2s">${s.nom}</button>`
+    ).join('');
+
+    const tabPanels = sessions.map((s,i)=>{
       const color = COLORS[i % COLORS.length];
       const light = color + '18';
-
-      // Netejem atributs d'edició del HTML per a l'exportació
-      let cHTML = s.contingut || '';
-      if (!cHTML.includes('<')) {
-        cHTML = cHTML.split('\n').filter(p=>p.trim()).map(p=>`<p>${p}</p>`).join('');
-      } else {
-        // Eliminem contenteditable i altres atributs d'edició
-        const tmp = document.createElement('div');
-        tmp.innerHTML = cHTML;
-        tmp.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-        tmp.querySelectorAll('[data-ud-img]').forEach(el => el.removeAttribute('data-ud-img'));
-        cHTML = tmp.innerHTML;
-      }
+      const cHTML = cleanHTML(s.contingut);
       const exHTML = s.exercicis
         ? s.exercicis.split('\n').filter(e=>e.trim()).map((e,ei)=>
             `<div class="ex-row"><div class="ex-n" style="background:${color}">${ei+1}</div><div class="ex-t">${e.replace(/^\d+[\.\)]\s*/,'')}</div></div>`
           ).join('') : '';
-      return `<section class="sess" style="--c:${color};--cl:${light}">
-        <div class="sess-hero">
-          <div class="sess-badge">${s.nom}</div>
-          ${s.objectius?`<p class="sess-obj">${s.objectius}</p>`:''}
-        </div>
+      return `<div class="tab-panel" id="tab-${i}" style="display:${i===0?'block':'none'}">
         <div class="sess-body">
           <div class="sess-text">${cHTML}</div>
-          ${exHTML?`<div class="exer-box"><div class="exer-hdr">✏️ Exercicis i activitats</div>${exHTML}</div>`:''}
-        </div></section>`;
+          ${exHTML?`<div class="exer-box" style="margin-top:26px;background:${light};border-radius:12px;padding:18px 22px;border-left:4px solid ${color}"><div class="exer-hdr" style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:${color};margin-bottom:14px">✏️ Exercicis i activitats</div>${exHTML}</div>`:''}
+        </div>
+      </div>`;
     }).join('');
+
+    const saHTML = data.sa && Object.values(data.sa).some(v=>v) ? `
+<div class="sa-section">
+  <div class="sa-header"><div class="sa-icon">🎯</div><div>
+    <div class="sa-label">Situació d'Aprenentatge</div>
+    <h2 class="sa-title">${data.sa.titolSA||''}</h2>
+  </div></div>
+  <div class="sa-grid">
+    ${data.sa.narrativa?`<div class="sa-item sa-full"><div class="sa-item-label">📖 Narrativa</div><p>${data.sa.narrativa}</p></div>`:''}
+    ${data.sa.repte?`<div class="sa-item"><div class="sa-item-label">❓ Repte</div><p>${data.sa.repte}</p></div>`:''}
+    ${data.sa.producte?`<div class="sa-item"><div class="sa-item-label">🏆 Producte final</div><p>${data.sa.producte}</p></div>`:''}
+    ${data.sa.connexio?`<div class="sa-item"><div class="sa-item-label">🌍 Connexió real</div><p>${data.sa.connexio}</p></div>`:''}
+    ${data.sa.arees?`<div class="sa-item"><div class="sa-item-label">📚 Àrees</div><p>${data.sa.arees}</p></div>`:''}
+    ${data.sa.temporitzacio?`<div class="sa-item"><div class="sa-item-label">🕐 Temporització</div><p>${data.sa.temporitzacio}</p></div>`:''}
+  </div>
+</div>` : '';
+
     return `<!DOCTYPE html>
 <html lang="ca"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${titol||'Unitat Didàctica'}</title>
@@ -453,84 +475,78 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;font-size:16px;line-height:1.7}
-.cover{background:#1a2744;color:white;min-height:300px;display:flex;flex-direction:column;justify-content:flex-end;padding:48px 56px 40px;position:relative;overflow:hidden}
-.cover::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;border-radius:50%;background:rgba(200,150,12,.15)}
-.cover-meta{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:16px}
-.cover-title{font-family:'Playfair Display',serif;font-size:clamp(26px,5vw,52px);font-weight:900;line-height:1.1;margin-bottom:18px;max-width:700px}
-.cover-line{width:60px;height:4px;background:#c8960c;margin-bottom:18px}
-.cover-pills{display:flex;gap:12px;flex-wrap:wrap}
-.cover-pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:100px;padding:5px 16px;font-size:13px;font-weight:500}
-.cover-date{color:rgba(255,255,255,.35);font-size:11px;margin-top:18px}
-.just{background:white;border-left:5px solid #c8960c;margin:28px 40px;padding:18px 22px;border-radius:0 8px 8px 0;font-size:15px;color:#555;font-style:italic}
-.sess{margin:0 40px 32px;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07)}
-.sess-hero{background:var(--c);padding:26px 34px 22px;color:white;position:relative;overflow:hidden}
-.sess-hero::after{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.08)}
-.sess-badge{display:inline-block;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:5px 16px;font-size:14px;font-weight:700;margin-bottom:10px;font-family:'Playfair Display',serif}
-.sess-title{font-family:'Playfair Display',serif;font-size:clamp(18px,3vw,26px);font-weight:700;line-height:1.2;margin-bottom:6px}
-.sess-obj{font-size:13px;color:rgba(255,255,255,.8);font-style:italic;margin-top:6px}
-.sess-body{padding:30px 34px}
-.sess-text p{margin-bottom:13px;font-size:15px;color:#2c2c2c;line-height:1.8}
+.cover{background:#1a2744;color:white;padding:40px 48px 36px;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;border-radius:50%;background:rgba(200,150,12,.12)}
+.cover-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:12px}
+.cover-title{font-family:'Playfair Display',serif;font-size:clamp(24px,5vw,48px);font-weight:900;line-height:1.15;margin-bottom:16px;max-width:700px}
+.cover-line{width:50px;height:4px;background:#c8960c;margin-bottom:16px}
+.cover-pills{display:flex;gap:10px;flex-wrap:wrap}
+.cover-pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:100px;padding:4px 14px;font-size:12px;font-weight:500}
+.cover-date{color:rgba(255,255,255,.3);font-size:11px;margin-top:14px}
+.just{background:white;border-left:5px solid #c8960c;margin:24px 40px;padding:16px 20px;border-radius:0 8px 8px 0;font-size:15px;color:#555;font-style:italic}
+.main-wrap{max-width:900px;margin:0 auto;padding:24px 32px}
+.tab-nav{display:flex;flex-wrap:wrap;border-bottom:2px solid #e0ddd6;margin-bottom:0;background:white;border-radius:12px 12px 0 0;overflow:hidden;border:1px solid #e0ddd6;border-bottom:none}
+.tab-body{background:white;border:1px solid #e0ddd6;border-top:none;border-radius:0 0 12px 12px;overflow:hidden;margin-bottom:24px}
+.sess-body{padding:28px 32px}
+.sess-text{font-size:15px;line-height:1.85;color:#2c2c2c}
+.sess-text p{margin-bottom:13px}
 .sess-text p:last-child{margin-bottom:0}
 .sess-text::after{content:'';display:table;clear:both}
 .sess-text img{border-radius:8px;border:1px solid #e4e8f0}
-.sess-text iframe{width:100%;height:220px;border:none;border-radius:10px;margin:14px 0;display:block;clear:both}
-.ud-video-wrap{margin:14px 0;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0}
-.ud-video-wrap iframe{width:100%;height:220px;border:none;display:block}
-.ud-video-caption{background:#1a2744;color:white;font-size:12px;padding:5px 12px;text-align:center}
-.ud-img-wrap{margin:14px 0;text-align:center}
-.ud-img-wrap img{max-width:100%;max-height:300px;border-radius:10px}
-.ud-img-caption{font-size:12px;color:#888;margin-top:6px;font-style:italic}
-.exer-box{margin-top:26px;background:var(--cl);border-radius:12px;padding:18px 22px;border-left:4px solid var(--c)}
-.exer-hdr{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--c);margin-bottom:14px}
-.ex-row{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
+.sess-text strong{font-weight:700}
+.sess-text em{font-style:italic}
+.sess-text u{text-decoration:underline}
+.sess-text a{color:#1a2744;font-weight:600;text-decoration:underline}
+.ud-video-wrap{margin:16px 0;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0;clear:both}
+.ud-video-wrap iframe{width:100%;height:260px;border:none;display:block}
+.ud-video-caption{background:#1a2744;color:white;font-size:12px;padding:6px 12px;text-align:center}
+.ex-row{display:flex;gap:12px;margin-bottom:10px;align-items:flex-start}
 .ex-n{min-width:26px;height:26px;border-radius:50%;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px}
-.ex-t{font-size:15px;color:#2c2c2c;line-height:1.6;flex:1}
-.footer{text-align:center;padding:22px;font-size:11px;color:#bbb;letter-spacing:.5px;text-transform:uppercase;border-top:1px solid #e8e6e0;margin:0 40px}
-.sa-section{margin:0 40px 32px;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07);border-left:6px solid #c8960c}
-.sa-header{display:flex;align-items:flex-start;gap:16px;padding:24px 28px 16px;border-bottom:1px solid #f0ede4;background:#fef9eb}
-.sa-icon{font-size:32px;flex-shrink:0;margin-top:4px}
-.sa-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#7a5c00;margin-bottom:6px}
-.sa-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#1a2744;line-height:1.2}
-.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0}
-.sa-item{padding:18px 24px;border-bottom:1px solid #f0ede4;border-right:1px solid #f0ede4}
+.ex-t{font-size:14px;color:#2c2c2c;line-height:1.6;flex:1}
+.sa-section{background:white;border-radius:12px;border-left:6px solid #c8960c;overflow:hidden;margin-bottom:24px;border:1px solid #e0ddd6;border-left-width:6px}
+.sa-header{display:flex;align-items:flex-start;gap:14px;padding:20px 24px 14px;border-bottom:1px solid #f0ede4;background:#fef9eb}
+.sa-icon{font-size:28px;flex-shrink:0}
+.sa-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#7a5c00;margin-bottom:5px}
+.sa-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#1a2744}
+.sa-grid{display:grid;grid-template-columns:1fr 1fr}
+.sa-item{padding:14px 20px;border-bottom:1px solid #f0ede4;border-right:1px solid #f0ede4}
 .sa-item:nth-child(even){border-right:none}
 .sa-full{grid-column:1/-1;border-right:none}
-.sa-item-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#7a5c00;margin-bottom:8px}
-.sa-item p{font-size:14px;color:#2c2c2c;line-height:1.7}
-@media(max-width:600px){.sa-section,.sa-grid{grid-template-columns:1fr}.sa-item{border-right:none}.cover{padding:28px 20px 24px}.sess,.just,.sa-section,.footer{margin-left:12px;margin-right:12px}.sess-hero{padding:18px 18px 14px}.sess-body{padding:20px 18px}}
-@media print{body{background:white}.sess{box-shadow:none;break-inside:avoid}.sa-section{break-inside:avoid}}
+.sa-item-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#7a5c00;margin-bottom:6px}
+.sa-item p{font-size:13px;color:#2c2c2c;line-height:1.6}
+.footer{text-align:center;padding:20px;font-size:11px;color:#bbb;border-top:1px solid #e8e6e0}
+@media(max-width:600px){.cover{padding:28px 20px 24px}.main-wrap{padding:16px}.tab-nav button{font-size:12px;padding:8px 12px}.sa-grid{grid-template-columns:1fr}.sa-item{border-right:none}}
+@media print{body{background:white}.tab-panel{display:block!important}.tab-nav{display:none}}
 </style></head><body>
 <div class="cover">
+  <div class="cover-label">${[assignatura,nivellText].filter(Boolean).join(' · ')}</div>
   <h1 class="cover-title">${titol||'Unitat Didàctica'}</h1>
   <div class="cover-line"></div>
   <div class="cover-pills">
-    ${assignatura?`<span class="cover-pill">${assignatura}</span>`:''}
-    ${nivellText?`<span class="cover-pill">${nivellText}</span>`:''}
     <span class="cover-pill">${sessions.length} sessions</span>
+    <span class="cover-pill">${date}</span>
   </div>
-  <div class="cover-date">${date}</div>
 </div>
+<div class="main-wrap">
+${saHTML}
 ${justificacio?`<div class="just">${justificacio}</div>`:''}
-${data.sa && Object.values(data.sa).some(v=>v) ? `
-<div class="sa-section">
-  <div class="sa-header">
-    <div class="sa-icon">🎯</div>
-    <div>
-      <div class="sa-label">Situació d'Aprenentatge</div>
-      <h2 class="sa-title">${data.sa.titolSA || ''}</h2>
-    </div>
-  </div>
-  <div class="sa-grid">
-    ${data.sa.narrativa?`<div class="sa-item sa-full"><div class="sa-item-label">📖 Narrativa / Context motivador</div><p>${data.sa.narrativa}</p></div>`:''}
-    ${data.sa.repte?`<div class="sa-item"><div class="sa-item-label">❓ Repte o pregunta guia</div><p>${data.sa.repte}</p></div>`:''}
-    ${data.sa.producte?`<div class="sa-item"><div class="sa-item-label">🏆 Producte final</div><p>${data.sa.producte}</p></div>`:''}
-    ${data.sa.connexio?`<div class="sa-item"><div class="sa-item-label">🌍 Connexió amb la vida real</div><p>${data.sa.connexio}</p></div>`:''}
-    ${data.sa.arees?`<div class="sa-item"><div class="sa-item-label">📚 Àrees implicades</div><p>${data.sa.arees}</p></div>`:''}
-    ${data.sa.temporitzacio?`<div class="sa-item"><div class="sa-item-label">🕐 Temporització</div><p>${data.sa.temporitzacio}</p></div>`:''}
-  </div>
-</div>` : ''}
-${sessionsHTML}
+<div class="tab-nav">${tabBtns}</div>
+<div class="tab-body">${tabPanels}</div>
+<div class="footer">${titol||'Unitat Didàctica'} · ${[assignatura,nivellText].filter(Boolean).join(' · ')}</div>
+</div>
+<script>
+function showTab(n){
+  document.querySelectorAll('.tab-panel').forEach((p,i)=>p.style.display=i===n?'block':'none');
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    const colors=${JSON.stringify(COLORS)};
+    b.style.background=i===n?colors[i%colors.length]:'transparent';
+    b.style.color=i===n?'white':'#555';
+    b.style.borderBottom='3px solid '+(i===n?colors[i%colors.length]:'transparent');
+  });
+}
+<\/script>
 </body></html>`;
+  }
   }
 
   // ── MODIFICA LA CAPÇALERA ────────────────────────────────────────
@@ -745,14 +761,39 @@ ${sessionsHTML}
   function makeToolbar(editor, syncFn) {
     const bar=document.createElement('div'); bar.className='ud-toolbar';
 
-    const bVid=document.createElement('button'); bVid.type='button'; bVid.textContent='▶ Vídeo YouTube';
+    // ── FORMAT TEXT ──
+    const fmt = (cmd, val) => { document.execCommand(cmd, false, val); editor.focus(); setTimeout(syncFn, 50); };
+
+    const bBold = document.createElement('button'); bBold.type='button'; bBold.title='Negreta';
+    bBold.innerHTML='<strong>N</strong>'; bBold.onclick=()=>fmt('bold');
+
+    const bItal = document.createElement('button'); bItal.type='button'; bItal.title='Cursiva';
+    bItal.innerHTML='<em>C</em>'; bItal.onclick=()=>fmt('italic');
+
+    const bUnder = document.createElement('button'); bUnder.type='button'; bUnder.title='Subratllat';
+    bUnder.innerHTML='<u>S</u>'; bUnder.onclick=()=>fmt('underline');
+
+    const szSel = document.createElement('select'); szSel.title='Mida de la font';
+    szSel.style.cssText='padding:4px 6px;border:1px solid #c8d0e8;border-radius:6px;font-size:12px;background:white;color:#1a2744;cursor:pointer;height:28px';
+    [['Petita','1'],['Normal','3'],['Gran','5'],['Molt gran','6']].forEach(([lbl,val])=>{
+      const o=document.createElement('option'); o.value=val; o.textContent=lbl;
+      if(val==='3') o.selected=true;
+      szSel.appendChild(o);
+    });
+    szSel.onchange=()=>{fmt('fontSize',szSel.value); szSel.value='3';};
+
+    const sep = ()=>{ const s=document.createElement('span'); s.style.cssText='width:1px;background:#c8d0e8;margin:0 2px;align-self:stretch'; return s; };
+
+    // ── MEDIA ──
+    const bVid=document.createElement('button'); bVid.type='button'; bVid.textContent='▶ YouTube';
     bVid.onclick=()=>modal('Inserir vídeo de YouTube',[
       {id:'url',label:'URL del vídeo',ph:'https://www.youtube.com/watch?v=...'},
       {id:'cap',label:'Títol (opcional)',ph:"Ex: Els instruments de l'orquestra"},
     ],({url,cap})=>{
       if(!url)return; const id=ytId(url);
       if(!id){alert('URL de YouTube no vàlida');return;}
-      insertHTML(editor,`<div class="ud-video-wrap" contenteditable="false"><iframe src="https://www.youtube.com/embed/${id}" allowfullscreen></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
+      // youtube-nocookie evita l'error 153
+      insertHTML(editor,`<div data-ud-vid="${id}" class="ud-video-wrap" contenteditable="false"><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
     });
 
     const bImg=document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
@@ -763,13 +804,14 @@ ${sessionsHTML}
     const bLink=document.createElement('button'); bLink.type='button'; bLink.textContent='🔗 Enllaç';
     bLink.onclick=()=>modal('Inserir enllaç',[
       {id:'url',label:'URL',ph:'https://...'},
-      {id:'txt',label:'Text',ph:'Ex: Més informació'},
+      {id:'txt',label:'Text de l\'enllaç',ph:'Ex: Més informació'},
     ],({url,txt})=>{
       if(!url)return;
-      insertHTML(editor,`<a href="${url}" target="_blank" style="color:#1a2744;font-weight:600;text-decoration:underline">${txt||url}</a> `, syncFn);
+      const label=txt||url;
+      insertHTML(editor,`<a data-ud-link="1" href="${url}" target="_blank" style="color:#1a2744;font-weight:600;text-decoration:underline">${label}</a> `, syncFn);
     });
 
-    bar.appendChild(bVid); bar.appendChild(bImg); bar.appendChild(bLink);
+    [bBold,bItal,bUnder,szSel,sep(),bVid,bImg,bLink].forEach(el=>bar.appendChild(el));
     return bar;
   }
   function convertToEditor(textarea) {
@@ -807,15 +849,17 @@ ${sessionsHTML}
       }
     },300);
 
-    // Gestió de clics sobre imatges inserides
+    // Gestió de clics sobre elements inserits
     editor.addEventListener('click', e => {
-      const img = e.target.closest('img');
-      const wrap = e.target.closest('[data-ud-img]');
-      if (img || wrap) {
-        e.preventDefault();
-        const container = img ? img.closest('[data-ud-img]') : wrap;
-        if (container) showImageEditPanel(container, editor, syncToTextarea);
-      }
+      // Imatge
+      const imgWrap = e.target.closest('[data-ud-img]');
+      if (imgWrap) { e.preventDefault(); showImageEditPanel(imgWrap, editor, syncToTextarea); return; }
+      // Vídeo
+      const vidWrap = e.target.closest('[data-ud-vid]');
+      if (vidWrap) { e.preventDefault(); showVideoEditPanel(vidWrap, syncToTextarea); return; }
+      // Enllaç
+      const link = e.target.closest('[data-ud-link]');
+      if (link) { e.preventDefault(); showLinkEditPanel(link, syncToTextarea); return; }
     });
 
     textarea.style.display='none';
@@ -928,8 +972,65 @@ ${sessionsHTML}
     }, 100);
   }
 
-  // ── OBSERVADOR ───────────────────────────────────────────────────
-  function init() {
+    // Tancar en clicar fora
+    setTimeout(() => {
+      document.addEventListener('click', function closePn(e) {
+        if (!panel.contains(e.target) && !container.contains(e.target)) {
+          panel.remove();
+          document.removeEventListener('click', closePn);
+        }
+      });
+    }, 100);
+  }
+
+  function showVideoEditPanel(container, syncFn) {
+    document.querySelectorAll('.ud-img-panel').forEach(p=>p.remove());
+    const panel = document.createElement('div');
+    panel.className = 'ud-img-panel';
+    panel.style.cssText = 'position:absolute;z-index:9000;background:#1a2744;color:white;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,0.3);font-family:inherit;font-size:12px;min-width:180px;';
+    panel.innerHTML = `
+      <div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.6)">Vídeo YouTube</div>
+      <button id="ud-vid-delete" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,30,30,0.5);background:rgba(255,30,30,0.15);color:#ff9999;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">🗑 Eliminar vídeo</button>
+    `;
+    const rect = container.getBoundingClientRect();
+    panel.style.top = (rect.top + window.scrollY + 10) + 'px';
+    panel.style.left = Math.max(8, rect.left) + 'px';
+    document.body.appendChild(panel);
+    document.getElementById('ud-vid-delete').onclick = () => { container.remove(); syncFn(); panel.remove(); };
+    setTimeout(() => {
+      document.addEventListener('click', function cp(e) {
+        if (!panel.contains(e.target) && !container.contains(e.target)) { panel.remove(); document.removeEventListener('click',cp); }
+      });
+    }, 100);
+  }
+
+  function showLinkEditPanel(link, syncFn) {
+    document.querySelectorAll('.ud-img-panel').forEach(p=>p.remove());
+    const panel = document.createElement('div');
+    panel.className = 'ud-img-panel';
+    panel.style.cssText = 'position:absolute;z-index:9000;background:#1a2744;color:white;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,0.3);font-family:inherit;font-size:12px;min-width:220px;';
+    panel.innerHTML = `
+      <div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.6)">Enllaç</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);word-break:break-all">${link.href}</div>
+      <button id="ud-lnk-edit" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.25);background:transparent;color:white;cursor:pointer;font-size:12px;font-family:inherit">✏️ Editar text</button>
+      <button id="ud-lnk-delete" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,30,30,0.5);background:rgba(255,30,30,0.15);color:#ff9999;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">🗑 Eliminar enllaç</button>
+    `;
+    const rect = link.getBoundingClientRect();
+    panel.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+    panel.style.left = Math.max(8, rect.left) + 'px';
+    document.body.appendChild(panel);
+    document.getElementById('ud-lnk-edit').onclick = () => {
+      const newTxt = prompt('Text de l\'enllaç:', link.textContent);
+      if (newTxt !== null && newTxt.trim()) { link.textContent = newTxt.trim(); syncFn(); }
+      panel.remove();
+    };
+    document.getElementById('ud-lnk-delete').onclick = () => { link.remove(); syncFn(); panel.remove(); };
+    setTimeout(() => {
+      document.addEventListener('click', function cp(e) {
+        if (!panel.contains(e.target) && !link.contains(e.target)) { panel.remove(); document.removeEventListener('click',cp); }
+      });
+    }, 100);
+  }
 
     // Fix sessions guardades: deduplicar per títol
     fixSavedSessions();
