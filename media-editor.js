@@ -676,23 +676,17 @@ ${sessionsHTML}
 
   function buildImageHTML(url, cap, pos, size) {
     const sz = size || '40';
-    const floatStyle = pos === 'left'
-      ? `float:left;margin:0 18px 12px 0;`
-      : pos === 'right'
-      ? `float:right;margin:0 0 12px 18px;`
-      : `display:block;margin:14px auto;`;
-    const wrapStyle = pos === 'center'
-      ? `text-align:center;clear:both;margin:14px 0;`
-      : `overflow:hidden;margin:4px 0 12px;`;
     if (pos === 'center') {
-      return `<div class="ud-img-wrap" style="${wrapStyle}" contenteditable="false">
-        <img src="${url}" alt="${cap}" style="max-width:${sz}%;border-radius:8px;border:1px solid #e4e8f0;">
-        ${cap?`<div class="ud-img-caption">${cap}</div>`:''}
-      </div>`;
+      return `<div data-ud-img="1" style="text-align:center;clear:both;margin:14px 0;" contenteditable="false">
+        <img src="${url}" alt="${cap}" style="max-width:${sz}%;border-radius:8px;border:1px solid #e4e8f0;display:inline-block;">
+        ${cap?`<div class="ud-img-caption" style="font-size:11px;color:#888;font-style:italic;margin-top:4px">${cap}</div>`:''}
+      </div><p><br></p>`;
     }
-    return `<div style="${wrapStyle}" contenteditable="false">
-      <img src="${url}" alt="${cap}" style="width:${sz}%;${floatStyle}border-radius:8px;border:1px solid #e4e8f0;">
-      ${cap?`<div style="font-size:11px;color:#888;text-align:${pos};font-style:italic;margin-top:3px">${cap}</div>`:''}
+    const floatDir = pos === 'left' ? 'left' : 'right';
+    const margin   = pos === 'left' ? '0 18px 12px 0' : '0 0 12px 18px';
+    return `<div data-ud-img="1" style="overflow:hidden;margin:4px 0 12px;" contenteditable="false">
+      <img src="${url}" alt="${cap}" style="width:${sz}%;float:${floatDir};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;">
+      ${cap?`<div style="font-size:11px;color:#888;text-align:${floatDir};font-style:italic;margin-top:3px">${cap}</div>`:''}
     </div><p style="clear:none"><br></p>`;
   }
 
@@ -744,25 +738,157 @@ ${sessionsHTML}
     const editor=document.createElement('div'); editor.className='ud-editor'; editor.contentEditable='true';
     const init=textarea.value;
     editor.innerHTML=init?init.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join(''):'<p><br></p>';
-    editor.addEventListener('input',()=>{
-      textarea.value=editor.innerText;
+
+    // Sincronitza innerHTML (preserva links i imatges)
+    const syncToTextarea = () => {
+      textarea.value=editor.innerHTML;
       textarea.dispatchEvent(new Event('input',{bubbles:true}));
       textarea.dispatchEvent(new Event('change',{bubbles:true}));
-    });
+    };
+    editor.addEventListener('input', syncToTextarea);
+
+    // Quan React actualitza el textarea externament (IA genera contingut)
     let lastVal=textarea.value;
     setInterval(()=>{
-      if(textarea.value!==lastVal&&textarea.value!==editor.innerText){
+      if(textarea.value!==lastVal&&textarea.value!==editor.innerHTML){
         lastVal=textarea.value;
-        editor.innerHTML=textarea.value.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')||'<p><br></p>';
+        // Si ve text pla (de la IA), convertim a paràgrafs
+        const v=textarea.value;
+        if(!v.includes('<')){
+          editor.innerHTML=v.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')||'<p><br></p>';
+        } else {
+          editor.innerHTML=v;
+        }
       }
     },300);
+
+    // Gestió de clics sobre imatges inserides
+    editor.addEventListener('click', e => {
+      const img = e.target.closest('img');
+      const wrap = e.target.closest('[data-ud-img]');
+      if (img || wrap) {
+        e.preventDefault();
+        const container = img ? img.closest('[data-ud-img]') : wrap;
+        if (container) showImageEditPanel(container, editor, syncToTextarea);
+      }
+    });
+
     textarea.style.display='none';
     textarea.parentNode.insertBefore(makeToolbar(editor),textarea);
     textarea.parentNode.insertBefore(editor,textarea);
   }
 
+  // Panel flotant per editar imatges inserides
+  function showImageEditPanel(container, editor, syncFn) {
+    document.querySelectorAll('.ud-img-panel').forEach(p=>p.remove());
+    const img = container.querySelector('img');
+    if (!img) return;
+
+    const panel = document.createElement('div');
+    panel.className = 'ud-img-panel';
+    panel.style.cssText = `
+      position:absolute;z-index:9000;background:#1a2744;color:white;
+      border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.3);font-family:inherit;font-size:12px;min-width:220px;
+    `;
+
+    // Llegim valors actuals
+    const curSrc = img.src;
+    const curAlt = img.alt || '';
+    const curWidth = img.style.width || img.style.maxWidth || '40%';
+    const curFloat = img.style.float || (container.style.textAlign==='center'?'center':'');
+    const curSize = parseInt(curWidth)||40;
+
+    panel.innerHTML = `
+      <div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.6);margin-bottom:2px">Editar imatge</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:11px;opacity:0.7;flex-shrink:0">Mida:</span>
+        ${[25,40,60,100].map(s=>`<button data-sz="${s}" style="flex:1;padding:4px 2px;border-radius:6px;border:1px solid rgba(255,255,255,${curSize===s?'0.8':'0.25'});background:${curSize===s?'rgba(255,255,255,0.2)':'transparent'};color:white;cursor:pointer;font-size:11px;font-weight:600">${s}%</button>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:11px;opacity:0.7;flex-shrink:0">Pos:</span>
+        <button data-pos="left" style="flex:1;padding:4px;border-radius:6px;border:1px solid rgba(255,255,255,${curFloat==='left'?'0.8':'0.25'});background:${curFloat==='left'?'rgba(255,255,255,0.2)':'transparent'};color:white;cursor:pointer;font-size:11px">← Esq.</button>
+        <button data-pos="center" style="flex:1;padding:4px;border-radius:6px;border:1px solid rgba(255,255,255,${(!curFloat||curFloat==='center')?'0.8':'0.25'});background:${(!curFloat||curFloat==='center')?'rgba(255,255,255,0.2)':'transparent'};color:white;cursor:pointer;font-size:11px">↕ Ctr.</button>
+        <button data-pos="right" style="flex:1;padding:4px;border-radius:6px;border:1px solid rgba(255,255,255,${curFloat==='right'?'0.8':'0.25'});background:${curFloat==='right'?'rgba(255,255,255,0.2)':'transparent'};color:white;cursor:pointer;font-size:11px">Dta. →</button>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button id="ud-img-edit-alt" style="flex:1;padding:5px;border-radius:6px;border:1px solid rgba(255,255,255,0.25);background:transparent;color:white;cursor:pointer;font-size:11px">✏️ Peu de foto</button>
+        <button id="ud-img-delete" style="flex:1;padding:5px;border-radius:6px;border:1px solid rgba(255,30,30,0.5);background:rgba(255,30,30,0.15);color:#ff9999;cursor:pointer;font-size:11px;font-weight:700">🗑 Eliminar</button>
+      </div>
+    `;
+
+    // Posicionem el panel sobre la imatge
+    const rect = container.getBoundingClientRect();
+    const scrollY = window.scrollY;
+    panel.style.top = (rect.top + scrollY - 10) + 'px';
+    panel.style.left = Math.max(8, rect.left) + 'px';
+    document.body.appendChild(panel);
+
+    // Botons de mida
+    panel.querySelectorAll('[data-sz]').forEach(btn => {
+      btn.onclick = () => {
+        const sz = btn.dataset.sz + '%';
+        img.style.width = sz;
+        img.style.maxWidth = sz;
+        syncFn();
+        panel.remove();
+      };
+    });
+
+    // Botons de posició
+    panel.querySelectorAll('[data-pos]').forEach(btn => {
+      btn.onclick = () => {
+        const pos = btn.dataset.pos;
+        const sz = curWidth;
+        if (pos === 'center') {
+          container.style.cssText = 'text-align:center;clear:both;margin:14px 0;';
+          img.style.cssText = `max-width:${sz};border-radius:8px;border:1px solid #e4e8f0;display:inline-block;float:none;`;
+        } else {
+          const margin = pos==='left'?'0 18px 12px 0':'0 0 12px 18px';
+          container.style.cssText = 'overflow:hidden;margin:4px 0 12px;';
+          img.style.cssText = `width:${sz};float:${pos};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;`;
+        }
+        syncFn();
+        panel.remove();
+      };
+    });
+
+    // Peu de foto
+    document.getElementById('ud-img-edit-alt').onclick = () => {
+      const newAlt = prompt('Peu de foto:', curAlt);
+      if (newAlt !== null) {
+        img.alt = newAlt;
+        const caption = container.querySelector('.ud-img-caption, [style*="font-style:italic"]');
+        if (caption) caption.textContent = newAlt;
+        syncFn();
+      }
+      panel.remove();
+    };
+
+    // Eliminar
+    document.getElementById('ud-img-delete').onclick = () => {
+      container.remove();
+      syncFn();
+      panel.remove();
+    };
+
+    // Tancar en clicar fora
+    setTimeout(() => {
+      document.addEventListener('click', function closePn(e) {
+        if (!panel.contains(e.target) && !container.contains(e.target)) {
+          panel.remove();
+          document.removeEventListener('click', closePn);
+        }
+      });
+    }, 100);
+  }
+
   // ── OBSERVADOR ───────────────────────────────────────────────────
   function init() {
+
+    // Fix sessions guardades: deduplicar per títol
+    fixSavedSessions();
+
     new MutationObserver(()=>{
       document.querySelectorAll('textarea').forEach(ta=>{
         if(ta.dataset.udDone)return;
@@ -770,9 +896,48 @@ ${sessionsHTML}
       });
       setupHeader();
       injectSASection();
+      interceptSaveButton();
     }).observe(document.body,{childList:true,subtree:true});
 
-    [500,1000,2000,3000].forEach(t=>setTimeout(()=>{setupHeader();injectSASection();},t));
+    [500,1000,2000,3000].forEach(t=>setTimeout(()=>{setupHeader();injectSASection();interceptSaveButton();},t));
+  }
+
+  // Intercepta el botó Desar per actualitzar en lloc de crear una entrada nova
+  function interceptSaveButton() {
+    document.querySelectorAll('button').forEach(btn => {
+      const txt = btn.textContent?.trim() || '';
+      if ((txt.includes('💾') || txt.toLowerCase().includes('desar')) && !btn.dataset.udSaveFixed) {
+        btn.dataset.udSaveFixed = 'true';
+        btn.addEventListener('click', () => {
+          // Esperem que React guarde primer, llavors deduplicam
+          setTimeout(fixSavedSessions, 300);
+        }, true);
+      }
+    });
+  }
+
+  // Elimina duplicats del localStorage, mantenint només l'entrada més recent per títol
+  function fixSavedSessions() {
+    try {
+      const keys = ['ud_units', 'savedUnits', 'unitats'];
+      keys.forEach(key => {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const units = JSON.parse(raw);
+        if (!Array.isArray(units)) return;
+        // Deduplicam per títol, quedant-nos amb la més recent (primera del array, ja que s'insereix al davant)
+        const seen = new Set();
+        const deduped = units.filter(u => {
+          const k = (u.titol || u.title || u.nom || '').toLowerCase().trim() || u.id;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        if (deduped.length !== units.length) {
+          localStorage.setItem(key, JSON.stringify(deduped));
+        }
+      });
+    } catch(e) {}
   }
 
   if (document.body) {
