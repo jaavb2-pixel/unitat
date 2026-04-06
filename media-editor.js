@@ -31,17 +31,60 @@
   function collectData() {
     const rs = getAppState();
     const sa = getSAData();
+
+    // Sempre llegim directament dels editors del DOM per capturar imatges i vídeos
+    const editorSessions = [];
+    document.querySelectorAll('.session-card').forEach((card, i) => {
+      const nom = card.querySelector('.session-header input[type=text]')?.value
+        || rs?.sessions?.[i]?.nom
+        || `Sessió ${i+1}`;
+      let contingut = '', exercicis = '', objectius = '';
+
+      // Llegim dels editors enriquits (innerHTML preserva imatges/vídeos/links)
+      const editors = card.querySelectorAll('.ud-editor');
+      const textareas = card.querySelectorAll('textarea');
+
+      if (editors.length >= 1) {
+        contingut = editors[0].innerHTML;
+      } else {
+        textareas.forEach(ta => {
+          if (parseInt(ta.getAttribute('rows')||0) === 8) contingut = ta.value;
+        });
+      }
+      if (editors.length >= 2) {
+        exercicis = editors[1].innerText;
+      } else {
+        textareas.forEach(ta => {
+          if (parseInt(ta.getAttribute('rows')||0) === 6) exercicis = ta.value;
+        });
+      }
+
+      // Objectius del React state
+      objectius = rs?.sessions?.[i]?.objectiusOperatius || '';
+
+      if (contingut || exercicis) {
+        editorSessions.push({ idx: i+1, nom, contingut, exercicis, objectius });
+      }
+    });
+
+    // Dades bàsiques: React state o DOM
+    const titol      = rs?.titol || document.querySelector('input[type=text]')?.value || '';
+    const assignatura = rs?.assignatura || '';
+    const nivell     = rs?.nivell || '';
+    const justificacio = rs?.justificacio || '';
+
+    if (editorSessions.length) {
+      return { titol, assignatura, nivell, justificacio, sa, sessions: editorSessions };
+    }
+
+    // Fallback: si no hi ha editors, usem React state
     if (rs && rs.sessions?.length) {
       return {
-        titol: rs.titol || '',
-        assignatura: rs.assignatura || '',
-        nivell: rs.nivell || '',
-        justificacio: rs.justificacio || '',
-        sa,
+        titol, assignatura, nivell, justificacio, sa,
         sessions: rs.sessions
           .filter(s => s.contingutAlumne || s.exercicis)
           .map((s, i) => ({
-            idx: i + 1,
+            idx: i+1,
             nom: s.nom || `Sessió ${i+1}`,
             contingut: s.contingutAlumne || '',
             exercicis: s.exercicis || '',
@@ -49,23 +92,7 @@
           }))
       };
     }
-    // Fallback DOM
-    const data = { titol:'', assignatura:'', nivell:'', justificacio:'', sa: getSAData(), sessions:[] };
-    document.querySelectorAll('input[type=text]').forEach(inp => {
-      const lbl = inp.closest('div')?.querySelector('label')?.textContent?.toLowerCase()||'';
-      if (lbl.includes('títol')||lbl.includes('titol')) data.titol = inp.value;
-    });
-    document.querySelectorAll('.session-card').forEach((card, i) => {
-      const nom = card.querySelector('.session-header input[type=text]')?.value || `Sessió ${i+1}`;
-      let contingut='', exercicis='';
-      card.querySelectorAll('textarea').forEach(ta => {
-        if (parseInt(ta.getAttribute('rows')||0) === 8) contingut = ta.value;
-        if (parseInt(ta.getAttribute('rows')||0) === 6) exercicis = ta.value;
-      });
-      card.querySelectorAll('.ud-editor').forEach(ed => { contingut = ed.innerText; });
-      if (contingut||exercicis) data.sessions.push({idx:i+1,nom,contingut,exercicis,objectius:''});
-    });
-    return data;
+    return { titol, assignatura, nivell, justificacio, sa, sessions: [] };
   }
 
   // ── LLEGEIX DADES DE LA SA ───────────────────────────────────────
@@ -392,9 +419,19 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
     const sessionsHTML = sessions.map((s, i) => {
       const color = COLORS[i % COLORS.length];
       const light = color + '18';
-      let cHTML = s.contingut;
-      if (!s.contingut.includes('<'))
-        cHTML = s.contingut.split('\n').filter(p=>p.trim()).map(p=>`<p>${p}</p>`).join('');
+
+      // Netejem atributs d'edició del HTML per a l'exportació
+      let cHTML = s.contingut || '';
+      if (!cHTML.includes('<')) {
+        cHTML = cHTML.split('\n').filter(p=>p.trim()).map(p=>`<p>${p}</p>`).join('');
+      } else {
+        // Eliminem contenteditable i altres atributs d'edició
+        const tmp = document.createElement('div');
+        tmp.innerHTML = cHTML;
+        tmp.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+        tmp.querySelectorAll('[data-ud-img]').forEach(el => el.removeAttribute('data-ud-img'));
+        cHTML = tmp.innerHTML;
+      }
       const exHTML = s.exercicis
         ? s.exercicis.split('\n').filter(e=>e.trim()).map((e,ei)=>
             `<div class="ex-row"><div class="ex-n" style="background:${color}">${ei+1}</div><div class="ex-t">${e.replace(/^\d+[\.\)]\s*/,'')}</div></div>`
@@ -690,7 +727,7 @@ ${sessionsHTML}
     </div><p style="clear:none"><br></p>`;
   }
 
-  function insertHTML(editor, html) {
+  function insertHTML(editor, html, syncFn) {
     editor.focus();
     const sel=window.getSelection();
     if(editor.contains(sel.anchorNode)&&sel.rangeCount){
@@ -701,9 +738,11 @@ ${sessionsHTML}
       range.insertNode(frag);
       if(last){const r=range.cloneRange();r.setStartAfter(last);r.collapse(true);sel.removeAllRanges();sel.addRange(r);}
     } else { editor.innerHTML+=html; }
+    // Sincronitzem manualment perquè els canvis programàtics no disparen 'input'
+    if (syncFn) setTimeout(syncFn, 50);
   }
 
-  function makeToolbar(editor) {
+  function makeToolbar(editor, syncFn) {
     const bar=document.createElement('div'); bar.className='ud-toolbar';
 
     const bVid=document.createElement('button'); bVid.type='button'; bVid.textContent='▶ Vídeo YouTube';
@@ -713,12 +752,12 @@ ${sessionsHTML}
     ],({url,cap})=>{
       if(!url)return; const id=ytId(url);
       if(!id){alert('URL de YouTube no vàlida');return;}
-      insertHTML(editor,`<div class="ud-video-wrap" contenteditable="false"><iframe src="https://www.youtube.com/embed/${id}" allowfullscreen></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`);
+      insertHTML(editor,`<div class="ud-video-wrap" contenteditable="false"><iframe src="https://www.youtube.com/embed/${id}" allowfullscreen></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
     });
 
     const bImg=document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
     bImg.onclick=()=>imageModal(({url,cap,pos,size})=>{
-      insertHTML(editor, buildImageHTML(url,cap,pos,size));
+      insertHTML(editor, buildImageHTML(url,cap,pos,size), syncFn);
     });
 
     const bLink=document.createElement('button'); bLink.type='button'; bLink.textContent='🔗 Enllaç';
@@ -727,7 +766,7 @@ ${sessionsHTML}
       {id:'txt',label:'Text',ph:'Ex: Més informació'},
     ],({url,txt})=>{
       if(!url)return;
-      insertHTML(editor,`<a href="${url}" target="_blank" style="color:#1a2744;font-weight:600;text-decoration:underline">${txt||url}</a> `);
+      insertHTML(editor,`<a href="${url}" target="_blank" style="color:#1a2744;font-weight:600;text-decoration:underline">${txt||url}</a> `, syncFn);
     });
 
     bar.appendChild(bVid); bar.appendChild(bImg); bar.appendChild(bLink);
@@ -739,11 +778,17 @@ ${sessionsHTML}
     const init=textarea.value;
     editor.innerHTML=init?init.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join(''):'<p><br></p>';
 
-    // Sincronitza innerHTML (preserva links i imatges)
+    // Sincronitza innerHTML (preserva links, imatges i vídeos)
+    // Usem el setter natiu per forçar que React detecte el canvi
+    const nativeInputSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
     const syncToTextarea = () => {
-      textarea.value=editor.innerHTML;
-      textarea.dispatchEvent(new Event('input',{bubbles:true}));
-      textarea.dispatchEvent(new Event('change',{bubbles:true}));
+      if (nativeInputSetter) {
+        nativeInputSetter.call(textarea, editor.innerHTML);
+      } else {
+        textarea.value = editor.innerHTML;
+      }
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      textarea.dispatchEvent(new Event('change', { bubbles: true }));
     };
     editor.addEventListener('input', syncToTextarea);
 
@@ -774,8 +819,8 @@ ${sessionsHTML}
     });
 
     textarea.style.display='none';
-    textarea.parentNode.insertBefore(makeToolbar(editor),textarea);
-    textarea.parentNode.insertBefore(editor,textarea);
+    textarea.parentNode.insertBefore(makeToolbar(editor, syncToTextarea), textarea);
+    textarea.parentNode.insertBefore(editor, textarea);
   }
 
   // Panel flotant per editar imatges inserides
