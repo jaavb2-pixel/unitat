@@ -551,7 +551,6 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
   <div class="cover-line"></div>
   <div class="cover-pills">
     <span class="cover-pill">${sessions.length} sessions</span>
-    <span class="cover-pill">${date}</span>
   </div>
 </div>
 <div class="main-wrap">
@@ -880,9 +879,15 @@ function showTab(n){
 
     // Gestió de clics sobre elements inserits
     editor.addEventListener('click', e => {
-      // Imatge
+      // Imatge — busquem el contenidor [data-ud-img] o directament la img
       const imgWrap = e.target.closest('[data-ud-img]');
-      if (imgWrap) { e.preventDefault(); showImageEditPanel(imgWrap, editor, syncToTextarea); return; }
+      const imgDirect = e.target.closest('img');
+      if (imgWrap || imgDirect) {
+        e.preventDefault();
+        const container = imgWrap || (imgDirect ? imgDirect.closest('div') || imgDirect.parentElement : null);
+        if (container) showImageEditPanel(container, editor, syncToTextarea);
+        return;
+      }
       // Vídeo
       const vidWrap = e.target.closest('[data-ud-vid]');
       if (vidWrap) { e.preventDefault(); showVideoEditPanel(vidWrap, syncToTextarea); return; }
@@ -1052,21 +1057,6 @@ function showTab(n){
 
   // ── OBSERVADOR ───────────────────────────────────────────────────
   function init() {
-    // Ampliem la zona de contingut i reduïm marges de l'app
-    const appStyle = document.createElement('style');
-    appStyle.textContent = `
-      .main{max-width:100%!important;padding:14px 18px!important}
-      .card{margin-bottom:12px!important}
-      .card-body{padding:14px 16px!important}
-      .session-body{padding:12px!important}
-      .session-card{margin-bottom:10px!important}
-      .ai-zone{padding:12px!important}
-      .profe-zone{padding:10px 12px!important}
-      .form-row{margin-bottom:10px!important;gap:10px!important}
-      #ud-sa-section{margin-bottom:12px!important}
-    `;
-    document.head.appendChild(appStyle);
-
     // Fix sessions guardades: deduplicar per títol
     fixSavedSessions();
 
