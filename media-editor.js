@@ -640,12 +640,15 @@ function showTab(n){
 
   // ── BARRA D'EINES MEDIA ──────────────────────────────────────────
   const css = `
-    .ud-toolbar{display:flex;gap:6px;flex-wrap:wrap;padding:6px 10px;background:#f0f4ff;border:1.5px solid #c8d0e8;border-bottom:none;border-radius:8px 8px 0 0}
-    .ud-toolbar button{padding:5px 12px;border:1px solid #c8d0e8;border-radius:6px;background:white;font-size:12px;font-family:inherit;cursor:pointer;color:#1a2744;font-weight:600}
+    .ud-toolbar{display:flex;gap:5px;flex-wrap:wrap;padding:6px 8px;background:#f0f4ff;border:1.5px solid #c8d0e8;border-bottom:none;border-radius:8px 8px 0 0;align-items:center}
+    .ud-toolbar button{padding:5px 10px;border:1px solid #c8d0e8;border-radius:6px;background:white;font-size:12px;font-family:inherit;cursor:pointer;color:#1a2744;font-weight:600}
     .ud-toolbar button:hover{background:#e0e8ff}
-    .ud-editor{width:100%;min-height:220px;padding:12px;border:1.5px solid #c8d0e8;border-radius:0 0 8px 8px;font-family:inherit;font-size:14px;line-height:1.8;outline:none;background:#fffdf5;overflow-y:auto}
+    .ud-editor{width:100%;min-height:400px;padding:16px;border:1.5px solid #c8d0e8;border-radius:0 0 8px 8px;font-family:inherit;font-size:15px;line-height:1.85;outline:none;background:#fffdf5;overflow-y:auto}
     .ud-editor:focus{border-color:#1a2744;box-shadow:0 0 0 3px #1a274414}
-    .ud-editor p{margin-bottom:10px}
+    .ud-editor p{margin-bottom:12px}
+    .ud-video-hover{position:relative;display:inline-block;width:100%}
+    .ud-video-hover .ud-del-btn{display:none;position:absolute;top:8px;right:8px;z-index:10;background:#c1272d;color:white;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+    .ud-video-hover:hover .ud-del-btn{display:block}
     .ud-video-wrap{margin:14px 0;border-radius:8px;overflow:hidden;border:1px solid #c8d0e8}
     .ud-video-wrap iframe{width:100%;height:200px;border:none;display:block}
     .ud-video-caption{background:#1a2744;color:white;font-size:12px;padding:5px 10px;text-align:center}
@@ -819,7 +822,7 @@ function showTab(n){
       if(!url)return; const id=ytId(url);
       if(!id){alert('URL de YouTube no vàlida');return;}
       // youtube-nocookie evita l'error 153
-      insertHTML(editor,`<div data-ud-vid="${id}" class="ud-video-wrap" contenteditable="false"><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
+      insertHTML(editor,`<div data-ud-vid="${id}" class="ud-video-hover ud-video-wrap" contenteditable="false"><button class="ud-del-btn" onclick="this.closest('[data-ud-vid]').remove();this.dispatchEvent(new Event('input',{bubbles:true}))">🗑 Eliminar</button><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
     });
 
     const bImg=document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
@@ -1049,6 +1052,21 @@ function showTab(n){
 
   // ── OBSERVADOR ───────────────────────────────────────────────────
   function init() {
+    // Ampliem la zona de contingut i reduïm marges de l'app
+    const appStyle = document.createElement('style');
+    appStyle.textContent = `
+      .main{max-width:100%!important;padding:14px 18px!important}
+      .card{margin-bottom:12px!important}
+      .card-body{padding:14px 16px!important}
+      .session-body{padding:12px!important}
+      .session-card{margin-bottom:10px!important}
+      .ai-zone{padding:12px!important}
+      .profe-zone{padding:10px 12px!important}
+      .form-row{margin-bottom:10px!important;gap:10px!important}
+      #ud-sa-section{margin-bottom:12px!important}
+    `;
+    document.head.appendChild(appStyle);
+
     // Fix sessions guardades: deduplicar per títol
     fixSavedSessions();
 
