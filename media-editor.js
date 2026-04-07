@@ -547,7 +547,6 @@ function showTab(n){
 <\/script>
 </body></html>`;
   }
-  }
 
   // ── MODIFICA LA CAPÇALERA ────────────────────────────────────────
   function setupHeader() {
@@ -972,17 +971,6 @@ function showTab(n){
     }, 100);
   }
 
-    // Tancar en clicar fora
-    setTimeout(() => {
-      document.addEventListener('click', function closePn(e) {
-        if (!panel.contains(e.target) && !container.contains(e.target)) {
-          panel.remove();
-          document.removeEventListener('click', closePn);
-        }
-      });
-    }, 100);
-  }
-
   function showVideoEditPanel(container, syncFn) {
     document.querySelectorAll('.ud-img-panel').forEach(p=>p.remove());
     const panel = document.createElement('div');
@@ -1032,6 +1020,8 @@ function showTab(n){
     }, 100);
   }
 
+  // ── OBSERVADOR ───────────────────────────────────────────────────
+  function init() {
     // Fix sessions guardades: deduplicar per títol
     fixSavedSessions();
 
