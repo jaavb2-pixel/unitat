@@ -423,11 +423,29 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       const tmp = document.createElement('div');
       tmp.innerHTML = html;
       tmp.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
-      tmp.querySelectorAll('[data-ud-img],[data-ud-link]').forEach(el=>el.removeAttribute('data-ud-img')||el.removeAttribute('data-ud-link'));
-      // Corregim URLs de youtube-nocookie per a l'exportació
-      tmp.querySelectorAll('iframe[src*="youtube"]').forEach(fr=>{
-        fr.src = fr.src.replace('youtube.com/embed','youtube-nocookie.com/embed');
-        fr.setAttribute('allow','accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture');
+      tmp.querySelectorAll('[data-ud-img],[data-ud-link]').forEach(el=>{
+        el.removeAttribute('data-ud-img'); el.removeAttribute('data-ud-link');
+      });
+      // Convertim iframes de YouTube en targetes clicables (funciona en fitxers locals)
+      tmp.querySelectorAll('.ud-video-wrap, [data-ud-vid]').forEach(wrap => {
+        const iframe = wrap.querySelector('iframe');
+        const caption = wrap.querySelector('.ud-video-caption');
+        if (!iframe) return;
+        const src = iframe.src || '';
+        const vidId = (src.match(/\/embed\/([a-zA-Z0-9_-]{11})/) || [])[1];
+        if (!vidId) return;
+        const capText = caption ? caption.textContent.replace('▶','').trim() : 'Veure vídeo a YouTube';
+        const thumb = `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`;
+        const ytUrl = `https://www.youtube.com/watch?v=${vidId}`;
+        wrap.outerHTML = `<div class="yt-card">
+          <a href="${ytUrl}" target="_blank" class="yt-link">
+            <div class="yt-thumb-wrap">
+              <img src="${thumb}" class="yt-thumb" alt="${capText}">
+              <div class="yt-play"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
+            </div>
+            <div class="yt-caption">${capText}</div>
+          </a>
+        </div>`;
       });
       return tmp.innerHTML;
     };
@@ -500,6 +518,15 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
 .ud-video-wrap{margin:16px 0;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0;clear:both}
 .ud-video-wrap iframe{width:100%;height:260px;border:none;display:block}
 .ud-video-caption{background:#1a2744;color:white;font-size:12px;padding:6px 12px;text-align:center}
+.yt-card{margin:16px 0;clear:both}
+.yt-link{display:block;text-decoration:none;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0;transition:box-shadow .2s}
+.yt-link:hover{box-shadow:0 4px 16px rgba(0,0,0,.15)}
+.yt-thumb-wrap{position:relative;background:#000;overflow:hidden;max-height:280px}
+.yt-thumb{width:100%;display:block;opacity:.92}
+.yt-link:hover .yt-thumb{opacity:1}
+.yt-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);transition:transform .2s}
+.yt-link:hover .yt-play{transform:translate(-50%,-50%) scale(1.1)}
+.yt-caption{background:#1a2744;color:white;font-size:13px;font-weight:500;padding:8px 14px;text-align:center}
 .ex-row{display:flex;gap:12px;margin-bottom:10px;align-items:flex-start}
 .ex-n{min-width:26px;height:26px;border-radius:50%;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px}
 .ex-t{font-size:14px;color:#2c2c2c;line-height:1.6;flex:1}
