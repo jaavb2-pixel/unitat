@@ -645,9 +645,14 @@ function showTab(n){
     .ud-editor{width:100%;min-height:400px;padding:16px;border:1.5px solid #c8d0e8;border-radius:0 0 8px 8px;font-family:inherit;font-size:15px;line-height:1.85;outline:none;background:#fffdf5;overflow-y:auto}
     .ud-editor:focus{border-color:#1a2744;box-shadow:0 0 0 3px #1a274414}
     .ud-editor p{margin-bottom:12px}
-    .ud-video-hover{position:relative;display:inline-block;width:100%}
-    .ud-video-hover .ud-del-btn{display:none;position:absolute;top:8px;right:8px;z-index:10;background:#c1272d;color:white;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
-    .ud-video-hover:hover .ud-del-btn{display:block}
+    .ud-video-hover{position:relative;display:block;margin:14px 0;clear:both}
+    .ud-vid-controls{display:none;position:absolute;top:8px;right:8px;z-index:10;display:none;gap:4px;background:rgba(26,39,68,0.85);border-radius:8px;padding:4px 6px;align-items:center}
+    .ud-video-hover:hover .ud-vid-controls{display:flex}
+    .ud-vid-move,.ud-del-btn-inline{border:none;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit}
+    .ud-vid-move{background:rgba(255,255,255,0.15);color:white}
+    .ud-vid-move:hover{background:rgba(255,255,255,0.3)}
+    .ud-del-btn-inline{background:rgba(193,39,45,0.8);color:white}
+    .ud-del-btn-inline:hover{background:#c1272d}
     .ud-video-wrap{margin:14px 0;border-radius:8px;overflow:hidden;border:1px solid #c8d0e8}
     .ud-video-wrap iframe{width:100%;height:200px;border:none;display:block}
     .ud-video-caption{background:#1a2744;color:white;font-size:12px;padding:5px 10px;text-align:center}
@@ -821,7 +826,7 @@ function showTab(n){
       if(!url)return; const id=ytId(url);
       if(!id){alert('URL de YouTube no vàlida');return;}
       // youtube-nocookie evita l'error 153
-      insertHTML(editor,`<div data-ud-vid="${id}" class="ud-video-hover ud-video-wrap" contenteditable="false"><button class="ud-del-btn" onclick="this.closest('[data-ud-vid]').remove();this.dispatchEvent(new Event('input',{bubbles:true}))">🗑 Eliminar</button><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
+      insertHTML(editor,`<div data-ud-vid="${id}" class="ud-video-hover ud-video-wrap" contenteditable="false" draggable="true"><div class="ud-vid-controls"><button class="ud-vid-move" data-dir="up" title="Moure amunt">↑</button><button class="ud-vid-move" data-dir="down" title="Moure avall">↓</button><button class="ud-del-btn-inline" title="Eliminar">🗑</button></div><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
     });
 
     const bImg=document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
@@ -888,9 +893,39 @@ function showTab(n){
         if (container) showImageEditPanel(container, editor, syncToTextarea);
         return;
       }
-      // Vídeo
+      // Vídeo — controls de moure i eliminar
       const vidWrap = e.target.closest('[data-ud-vid]');
-      if (vidWrap) { e.preventDefault(); showVideoEditPanel(vidWrap, syncToTextarea); return; }
+      if (vidWrap) {
+        e.preventDefault();
+        // Botó eliminar
+        if (e.target.closest('.ud-del-btn-inline')) {
+          let target = vidWrap;
+          while (target && target.parentElement && target.parentElement !== editor) target = target.parentElement;
+          const p = document.createElement('p'); p.innerHTML='<br>';
+          (target.parentElement||editor).insertBefore(p, target);
+          target.remove();
+          syncToTextarea();
+          return;
+        }
+        // Botons moure
+        if (e.target.closest('.ud-vid-move')) {
+          const dir = e.target.closest('.ud-vid-move').dataset.dir;
+          // Troba el contenidor fill directe de l'editor
+          let el = vidWrap;
+          while (el && el.parentElement !== editor) el = el.parentElement;
+          if (!el) return;
+          if (dir === 'up') {
+            const prev = el.previousElementSibling;
+            if (prev) editor.insertBefore(el, prev);
+          } else {
+            const next = el.nextElementSibling;
+            if (next) editor.insertBefore(next, el);
+          }
+          syncToTextarea();
+          return;
+        }
+        return;
+      }
       // Enllaç
       const link = e.target.closest('[data-ud-link]');
       if (link) { e.preventDefault(); showLinkEditPanel(link, syncToTextarea); return; }
@@ -988,9 +1023,23 @@ function showTab(n){
       panel.remove();
     };
 
-    // Eliminar
+    // Eliminar — eliminam NOMÉS el contenidor de la imatge, no tot l'editor
     document.getElementById('ud-img-delete').onclick = () => {
-      container.remove();
+      // Trobem el contenidor més proper que sigua fill directe de l'editor
+      let target = container;
+      while (target && target.parentElement && target.parentElement !== editor) {
+        target = target.parentElement;
+      }
+      if (target && target !== editor) {
+        // Inserim un paràgraf buit per no deixar el cursor perdut
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        target.parentElement.insertBefore(p, target);
+        target.remove();
+      } else {
+        // fallback: eliminam només la imatge
+        img.remove();
+      }
       syncFn();
       panel.remove();
     };
