@@ -645,7 +645,13 @@ function showTab(n){
     .ud-editor{width:100%;min-height:400px;padding:16px;border:1.5px solid #c8d0e8;border-radius:0 0 8px 8px;font-family:inherit;font-size:15px;line-height:1.85;outline:none;background:#fffdf5;overflow-y:auto}
     .ud-editor:focus{border-color:#1a2744;box-shadow:0 0 0 3px #1a274414}
     .ud-editor p{margin-bottom:12px}
-    .ud-video-hover{position:relative;display:block;margin:14px 0;clear:both}
+    .ud-img-wrap-outer{position:relative!important}
+    .ud-img-controls{position:absolute;top:6px;left:6px;z-index:100;display:flex;gap:3px;background:rgba(26,39,68,0.82);border-radius:7px;padding:4px 5px;opacity:0;transition:opacity .15s}
+    .ud-img-wrap-outer:hover .ud-img-controls{opacity:1}
+    .ud-img-ctrl-btn{border:none;background:rgba(255,255,255,0.15);color:white;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;line-height:1}
+    .ud-img-ctrl-btn:hover{background:rgba(255,255,255,0.35)}
+    .ud-img-del{background:rgba(193,39,45,0.7)!important}
+    .ud-img-del:hover{background:#c1272d!important}
     .ud-vid-controls{display:none;position:absolute;top:8px;right:8px;z-index:10;display:none;gap:4px;background:rgba(26,39,68,0.85);border-radius:8px;padding:4px 6px;align-items:center}
     .ud-video-hover:hover .ud-vid-controls{display:flex}
     .ud-vid-move,.ud-del-btn-inline{border:none;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit}
@@ -762,18 +768,22 @@ function showTab(n){
 
   function buildImageHTML(url, cap, pos, size) {
     const sz = size || '40';
+    const controls = `<div class="ud-img-controls" contenteditable="false">
+      <button class="ud-img-ctrl-btn" data-action="up">↑</button>
+      <button class="ud-img-ctrl-btn" data-action="down">↓</button>
+      <button class="ud-img-ctrl-btn" data-action="smaller">−</button>
+      <button class="ud-img-ctrl-btn" data-action="bigger">+</button>
+      <button class="ud-img-ctrl-btn" data-action="left">←</button>
+      <button class="ud-img-ctrl-btn" data-action="center">↕</button>
+      <button class="ud-img-ctrl-btn" data-action="right">→</button>
+      <button class="ud-img-ctrl-btn ud-img-del" data-action="del">🗑</button>
+    </div>`;
     if (pos === 'center') {
-      return `<div data-ud-img="1" style="text-align:center;clear:both;margin:14px 0;" contenteditable="false">
-        <img src="${url}" alt="${cap}" style="max-width:${sz}%;border-radius:8px;border:1px solid #e4e8f0;display:inline-block;">
-        ${cap?`<div class="ud-img-caption" style="font-size:11px;color:#888;font-style:italic;margin-top:4px">${cap}</div>`:''}
-      </div><p><br></p>`;
+      return `<div data-ud-img="1" class="ud-img-wrap-outer" style="text-align:center;clear:both;margin:14px 0;position:relative;" contenteditable="false">${controls}<img src="${url}" alt="${cap||''}" style="max-width:${sz}%;border-radius:8px;border:1px solid #e4e8f0;display:inline-block;">${cap?`<div style="font-size:11px;color:#888;font-style:italic;margin-top:4px">${cap}</div>`:''}</div><p><br></p>`;
     }
     const floatDir = pos === 'left' ? 'left' : 'right';
     const margin   = pos === 'left' ? '0 18px 12px 0' : '0 0 12px 18px';
-    return `<div data-ud-img="1" style="overflow:hidden;margin:4px 0 12px;" contenteditable="false">
-      <img src="${url}" alt="${cap}" style="width:${sz}%;float:${floatDir};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;">
-      ${cap?`<div style="font-size:11px;color:#888;text-align:${floatDir};font-style:italic;margin-top:3px">${cap}</div>`:''}
-    </div><p style="clear:none"><br></p>`;
+    return `<div data-ud-img="1" class="ud-img-wrap-outer" style="overflow:hidden;margin:4px 0 12px;position:relative;" contenteditable="false">${controls}<img src="${url}" alt="${cap||''}" style="width:${sz}%;float:${floatDir};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;">${cap?`<div style="font-size:11px;color:#888;text-align:${floatDir};font-style:italic;margin-top:3px">${cap}</div>`:''}</div><p style="clear:none"><br></p>`;
   }
 
   function insertHTML(editor, html, syncFn) {
@@ -903,15 +913,60 @@ function showTab(n){
     }
 
     editor.addEventListener('click', e => {
+      // Controls d'imatge (overlay buttons)
+      const ctrlBtn = e.target.closest('.ud-img-ctrl-btn');
+      if (ctrlBtn) {
+        e.preventDefault(); e.stopPropagation();
+        const wrap = ctrlBtn.closest('[data-ud-img]');
+        const img = wrap?.querySelector('img');
+        if (!wrap || !img) return;
+        const action = ctrlBtn.dataset.action;
+        const curSz = parseFloat(img.style.width || img.style.maxWidth) || 40;
+
+        if (action === 'del') {
+          let target = wrap;
+          while (target && target.parentElement && target.parentElement !== editor) target = target.parentElement;
+          const p = document.createElement('p'); p.innerHTML='<br>';
+          if (target && target !== editor) { target.after(p); target.remove(); }
+          else { wrap.remove(); }
+          syncToTextarea(); return;
+        }
+        if (action === 'smaller') {
+          const ns = Math.max(10, curSz - 10) + '%';
+          img.style.width = ns; img.style.maxWidth = ns;
+        }
+        if (action === 'bigger') {
+          const ns = Math.min(100, curSz + 10) + '%';
+          img.style.width = ns; img.style.maxWidth = ns;
+        }
+        if (action === 'left') {
+          wrap.style.cssText = 'overflow:hidden;margin:4px 0 12px;position:relative;';
+          img.style.cssText = `width:${curSz}%;float:left;margin:0 18px 12px 0;border-radius:8px;border:1px solid #e4e8f0;`;
+        }
+        if (action === 'right') {
+          wrap.style.cssText = 'overflow:hidden;margin:4px 0 12px;position:relative;';
+          img.style.cssText = `width:${curSz}%;float:right;margin:0 0 12px 18px;border-radius:8px;border:1px solid #e4e8f0;`;
+        }
+        if (action === 'center') {
+          wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;';
+          img.style.cssText = `max-width:${curSz}%;display:inline-block;float:none;border-radius:8px;border:1px solid #e4e8f0;`;
+        }
+        if (action === 'up') {
+          let el = wrap;
+          while (el && el.parentElement !== editor) el = el.parentElement;
+          if (el?.previousElementSibling) editor.insertBefore(el, el.previousElementSibling);
+        }
+        if (action === 'down') {
+          let el = wrap;
+          while (el && el.parentElement !== editor) el = el.parentElement;
+          if (el?.nextElementSibling) editor.insertBefore(el.nextElementSibling, el);
+        }
+        syncToTextarea(); return;
+      }
+
       const imgWrap = e.target.closest('[data-ud-img]');
       const imgEl   = e.target.closest('img');
-      if (imgWrap || imgEl) {
-        e.preventDefault();
-        const container = imgWrap || imgEl.closest('div') || imgEl.parentElement;
-        selectElement(container || imgEl);
-        if (container) showImageEditPanel(container, editor, syncToTextarea, removeSelected);
-        return;
-      }
+      if (imgWrap || imgEl) { e.preventDefault(); return; } // controls ja gestionats
       const vidWrap = e.target.closest('[data-ud-vid]');
       if (vidWrap) {
         e.preventDefault();
