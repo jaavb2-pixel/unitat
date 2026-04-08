@@ -942,23 +942,17 @@ function showTab(n){
     const img = container.querySelector('img');
     if (!img) return;
 
-    const panel = document.createElement('div');
-    panel.className = 'ud-img-panel';
-    panel.style.cssText = `
-      position:absolute;z-index:9000;background:#1a2744;color:white;
-      border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;
-      box-shadow:0 8px 24px rgba(0,0,0,0.3);font-family:inherit;font-size:12px;min-width:220px;
-    `;
-
-    // Llegim valors actuals
-    const curSrc = img.src;
-    const curAlt = img.alt || '';
     const curWidth = img.style.width || img.style.maxWidth || '40%';
     const curFloat = img.style.float || (container.style.textAlign==='center'?'center':'');
     const curSize = parseInt(curWidth)||40;
+    const curAlt = img.alt || '';
+
+    const panel = document.createElement('div');
+    panel.className = 'ud-img-panel';
+    panel.style.cssText = 'position:absolute;z-index:9000;background:#1a2744;color:white;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,0.3);font-family:inherit;font-size:12px;min-width:220px;';
 
     panel.innerHTML = `
-      <div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.6);margin-bottom:2px">Editar imatge</div>
+      <div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.6)">Editar imatge</div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:11px;opacity:0.7;flex-shrink:0">Mida:</span>
         ${[25,40,60,100].map(s=>`<button data-sz="${s}" style="flex:1;padding:4px 2px;border-radius:6px;border:1px solid rgba(255,255,255,${curSize===s?'0.8':'0.25'});background:${curSize===s?'rgba(255,255,255,0.2)':'transparent'};color:white;cursor:pointer;font-size:11px;font-weight:600">${s}%</button>`).join('')}
@@ -970,89 +964,77 @@ function showTab(n){
         <button data-pos="right" style="flex:1;padding:4px;border-radius:6px;border:1px solid rgba(255,255,255,${curFloat==='right'?'0.8':'0.25'});background:${curFloat==='right'?'rgba(255,255,255,0.2)':'transparent'};color:white;cursor:pointer;font-size:11px">Dta. →</button>
       </div>
       <div style="display:flex;gap:6px">
-        <button id="ud-img-edit-alt" style="flex:1;padding:5px;border-radius:6px;border:1px solid rgba(255,255,255,0.25);background:transparent;color:white;cursor:pointer;font-size:11px">✏️ Peu de foto</button>
-        <button id="ud-img-delete" style="flex:1;padding:5px;border-radius:6px;border:1px solid rgba(255,30,30,0.5);background:rgba(255,30,30,0.15);color:#ff9999;cursor:pointer;font-size:11px;font-weight:700">🗑 Eliminar</button>
+        <button data-action="alt" style="flex:1;padding:5px;border-radius:6px;border:1px solid rgba(255,255,255,0.25);background:transparent;color:white;cursor:pointer;font-size:11px">✏️ Peu de foto</button>
+        <button data-action="del" style="flex:1;padding:5px;border-radius:6px;border:1px solid rgba(255,30,30,0.5);background:rgba(255,30,30,0.15);color:#ff9999;cursor:pointer;font-size:11px;font-weight:700">🗑 Eliminar</button>
       </div>
     `;
 
-    // Posicionem el panel sobre la imatge
     const rect = container.getBoundingClientRect();
-    const scrollY = window.scrollY;
-    panel.style.top = (rect.top + scrollY - 10) + 'px';
+    panel.style.top = (rect.top + window.scrollY - 10) + 'px';
     panel.style.left = Math.max(8, rect.left) + 'px';
     document.body.appendChild(panel);
 
-    // Botons de mida
-    panel.querySelectorAll('[data-sz]').forEach(btn => {
-      btn.onclick = () => {
-        const sz = btn.dataset.sz + '%';
-        img.style.width = sz;
-        img.style.maxWidth = sz;
-        syncFn();
-        panel.remove();
-      };
-    });
+    // Un sol listener per a tots els botons del panel
+    panel.addEventListener('click', e => {
+      e.stopPropagation();
+      const sz_btn = e.target.closest('[data-sz]');
+      const pos_btn = e.target.closest('[data-pos]');
+      const action = e.target.closest('[data-action]')?.dataset.action;
 
-    // Botons de posició
-    panel.querySelectorAll('[data-pos]').forEach(btn => {
-      btn.onclick = () => {
-        const pos = btn.dataset.pos;
-        const sz = curWidth;
+      if (sz_btn) {
+        const sz = sz_btn.dataset.sz + '%';
+        img.style.width = sz; img.style.maxWidth = sz;
+        syncFn(); panel.remove(); return;
+      }
+      if (pos_btn) {
+        const pos = pos_btn.dataset.pos;
         if (pos === 'center') {
           container.style.cssText = 'text-align:center;clear:both;margin:14px 0;';
-          img.style.cssText = `max-width:${sz};border-radius:8px;border:1px solid #e4e8f0;display:inline-block;float:none;`;
+          img.style.cssText = `max-width:${curWidth};border-radius:8px;border:1px solid #e4e8f0;display:inline-block;float:none;`;
         } else {
           const margin = pos==='left'?'0 18px 12px 0':'0 0 12px 18px';
           container.style.cssText = 'overflow:hidden;margin:4px 0 12px;';
-          img.style.cssText = `width:${sz};float:${pos};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;`;
+          img.style.cssText = `width:${curWidth};float:${pos};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;`;
         }
-        syncFn();
-        panel.remove();
-      };
+        syncFn(); panel.remove(); return;
+      }
+      if (action === 'alt') {
+        const newAlt = prompt('Peu de foto:', curAlt);
+        if (newAlt !== null) {
+          img.alt = newAlt;
+          const caption = container.querySelector('.ud-img-caption, [style*="font-style:italic"]');
+          if (caption) caption.textContent = newAlt;
+          syncFn();
+        }
+        panel.remove(); return;
+      }
+      if (action === 'del') {
+        // Eliminem NOMÉS el contenidor de la imatge — mai l'editor sencer
+        let target = container;
+        while (target && target.parentElement && target.parentElement !== editor) {
+          target = target.parentElement;
+        }
+        if (target && target !== editor) {
+          const p = document.createElement('p'); p.innerHTML = '<br>';
+          target.after(p);
+          target.remove();
+        } else {
+          img.remove();
+        }
+        syncFn(); panel.remove(); return;
+      }
     });
 
-    // Peu de foto
-    document.getElementById('ud-img-edit-alt').onclick = () => {
-      const newAlt = prompt('Peu de foto:', curAlt);
-      if (newAlt !== null) {
-        img.alt = newAlt;
-        const caption = container.querySelector('.ud-img-caption, [style*="font-style:italic"]');
-        if (caption) caption.textContent = newAlt;
-        syncFn();
-      }
-      panel.remove();
-    };
-
-    // Eliminar — eliminam NOMÉS el contenidor de la imatge, no tot l'editor
-    document.getElementById('ud-img-delete').onclick = () => {
-      // Trobem el contenidor més proper que sigua fill directe de l'editor
-      let target = container;
-      while (target && target.parentElement && target.parentElement !== editor) {
-        target = target.parentElement;
-      }
-      if (target && target !== editor) {
-        // Inserim un paràgraf buit per no deixar el cursor perdut
-        const p = document.createElement('p');
-        p.innerHTML = '<br>';
-        target.parentElement.insertBefore(p, target);
-        target.remove();
-      } else {
-        // fallback: eliminam només la imatge
-        img.remove();
-      }
-      syncFn();
-      panel.remove();
-    };
-
-    // Tancar en clicar fora
+    // Tancar en clicar fora (amb stopPropagation al panel per no interferir)
     setTimeout(() => {
-      document.addEventListener('click', function closePn(e) {
-        if (!panel.contains(e.target) && !container.contains(e.target)) {
+      const closeOutside = ev => {
+        if (!panel.contains(ev.target) && !container.contains(ev.target)) {
           panel.remove();
-          document.removeEventListener('click', closePn);
+          document.removeEventListener('click', closeOutside);
         }
-      });
-    }, 100);
+      };
+      document.addEventListener('click', closeOutside);
+    }, 150);
   }
 
   function showVideoEditPanel(container, syncFn) {
