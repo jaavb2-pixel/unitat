@@ -882,53 +882,62 @@ function showTab(n){
       }
     },300);
 
-    // Gestió de clics sobre elements inserits
+    // Element seleccionat (imatge o video)
+    let selectedEl = null;
+    function selectElement(el) {
+      if (selectedEl) { selectedEl.style.outline=''; selectedEl.style.boxShadow=''; }
+      selectedEl = el;
+      if (el) { el.style.outline='3px solid #c8960c'; el.style.boxShadow='0 0 0 6px rgba(200,150,12,0.18)'; }
+    }
+    function removeSelected() {
+      if (!selectedEl) return;
+      let target = selectedEl;
+      while (target && target.parentElement && target.parentElement !== editor) target = target.parentElement;
+      if (target && target !== editor) {
+        const p = document.createElement('p'); p.innerHTML='<br>';
+        target.after(p); target.remove();
+      } else { selectedEl.remove(); }
+      selectedEl = null;
+      document.querySelectorAll('.ud-img-panel').forEach(p=>p.remove());
+      syncToTextarea();
+    }
+
     editor.addEventListener('click', e => {
-      // Imatge — busquem el contenidor [data-ud-img] o directament la img
       const imgWrap = e.target.closest('[data-ud-img]');
-      const imgDirect = e.target.closest('img');
-      if (imgWrap || imgDirect) {
+      const imgEl   = e.target.closest('img');
+      if (imgWrap || imgEl) {
         e.preventDefault();
-        const container = imgWrap || (imgDirect ? imgDirect.closest('div') || imgDirect.parentElement : null);
-        if (container) showImageEditPanel(container, editor, syncToTextarea);
+        const container = imgWrap || imgEl.closest('div') || imgEl.parentElement;
+        selectElement(container || imgEl);
+        if (container) showImageEditPanel(container, editor, syncToTextarea, removeSelected);
         return;
       }
-      // Vídeo — controls de moure i eliminar
       const vidWrap = e.target.closest('[data-ud-vid]');
       if (vidWrap) {
         e.preventDefault();
-        // Botó eliminar
-        if (e.target.closest('.ud-del-btn-inline')) {
-          let target = vidWrap;
-          while (target && target.parentElement && target.parentElement !== editor) target = target.parentElement;
-          const p = document.createElement('p'); p.innerHTML='<br>';
-          (target.parentElement||editor).insertBefore(p, target);
-          target.remove();
-          syncToTextarea();
-          return;
-        }
-        // Botons moure
+        if (e.target.closest('.ud-del-btn-inline')) { selectElement(vidWrap); removeSelected(); return; }
         if (e.target.closest('.ud-vid-move')) {
           const dir = e.target.closest('.ud-vid-move').dataset.dir;
-          // Troba el contenidor fill directe de l'editor
           let el = vidWrap;
           while (el && el.parentElement !== editor) el = el.parentElement;
           if (!el) return;
-          if (dir === 'up') {
-            const prev = el.previousElementSibling;
-            if (prev) editor.insertBefore(el, prev);
-          } else {
-            const next = el.nextElementSibling;
-            if (next) editor.insertBefore(next, el);
-          }
-          syncToTextarea();
-          return;
+          if (dir==='up' && el.previousElementSibling) editor.insertBefore(el, el.previousElementSibling);
+          else if (dir==='down' && el.nextElementSibling) editor.insertBefore(el.nextElementSibling, el);
+          syncToTextarea(); return;
         }
-        return;
+        selectElement(vidWrap); return;
       }
-      // Enllaç
       const link = e.target.closest('[data-ud-link]');
       if (link) { e.preventDefault(); showLinkEditPanel(link, syncToTextarea); return; }
+      selectElement(null);
+      document.querySelectorAll('.ud-img-panel').forEach(p=>p.remove());
+    });
+
+    // Supr / Delete elimina l'element seleccionat
+    editor.addEventListener('keydown', e => {
+      if ((e.key==='Delete'||e.key==='Backspace') && selectedEl) {
+        e.preventDefault(); removeSelected();
+      }
     });
 
     textarea.style.display='none';
@@ -937,7 +946,7 @@ function showTab(n){
   }
 
   // Panel flotant per editar imatges inserides
-  function showImageEditPanel(container, editor, syncFn) {
+  function showImageEditPanel(container, editor, syncFn, removeFn) {
     document.querySelectorAll('.ud-img-panel').forEach(p=>p.remove());
     const img = container.querySelector('img');
     if (!img) return;
