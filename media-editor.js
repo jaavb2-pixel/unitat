@@ -775,87 +775,91 @@ function showTab(n){
     setTimeout(() => document.getElementById('udf-img-url')?.focus(), 50);
   }
 
-  function insertImageFromSrc(editor, src, name, syncFn) {
-    // Inserim la imatge centrada per defecte al 50%
+  function makeImgWrap(src, altText, syncFn, editor) {
     const wrap = document.createElement('div');
     wrap.setAttribute('data-ud-img','1');
-    wrap.className='ud-img-wrap-outer';
-    wrap.contentEditable='false';
-    wrap.style.cssText='text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
-    controls.className='ud-img-controls';
-    controls.innerHTML=`
-      <button class="ud-img-ctrl-btn" data-action="up" title="Moure amunt">↑</button>
-      <button class="ud-img-ctrl-btn" data-action="down" title="Moure avall">↓</button>
-      <button class="ud-img-ctrl-btn" data-action="smaller" title="Reduir">−</button>
-      <button class="ud-img-ctrl-btn" data-action="bigger" title="Ampliar">+</button>
-      <button class="ud-img-ctrl-btn" data-action="left" title="Esquerra">←</button>
-      <button class="ud-img-ctrl-btn" data-action="center" title="Centrada">↕</button>
-      <button class="ud-img-ctrl-btn" data-action="right" title="Dreta">→</button>
-      <button class="ud-img-ctrl-btn ud-img-del" data-action="del" title="Eliminar">🗑</button>`;
+    wrap.className = 'ud-img-wrap-outer';
+    wrap.contentEditable = 'false';
+    wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+
+    const controls = document.createElement('div');
+    controls.className = 'ud-img-controls';
+    controls.innerHTML =
+      '<button class="ud-img-ctrl-btn" data-action="up">↑</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="down">↓</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="smaller">−</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="bigger">+</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="left">←</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="center">↕</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="right">→</button>' +
+      '<button class="ud-img-ctrl-btn ud-img-del" data-action="del">🗑</button>';
 
     const img = document.createElement('img');
     img.src = src;
-    img.alt = name || '';
-    img.style.cssText='max-width:50%;border-radius:8px;border:1px solid #e4e8f0;display:inline-block;';
+    img.alt = altText || '';
+    img.style.cssText = 'max-width:50%;border-radius:8px;border:1px solid #e4e8f0;display:inline-block;';
 
     wrap.appendChild(controls);
     wrap.appendChild(img);
 
-    // Afegim event listener directament als botons (no delegació)
-    controls.querySelectorAll('.ud-img-ctrl-btn').forEach(btn=>{
-      btn.addEventListener('mousedown', ev=>{
+    controls.querySelectorAll('.ud-img-ctrl-btn').forEach(btn => {
+      btn.addEventListener('mousedown', ev => {
         ev.preventDefault(); ev.stopPropagation();
         const action = btn.dataset.action;
-        const curSz = parseFloat(img.style.maxWidth||img.style.width||'50')||50;
-        if(action==='del'){
-          let t=wrap;
-          while(t&&t.parentElement&&t.parentElement!==editor)t=t.parentElement;
-          const p=document.createElement('p');p.innerHTML='<br>';
-          if(t&&t!==editor){t.after(p);t.remove();}else{wrap.remove();}
-          setTimeout(syncFn,50); return;
+        const curSz = parseFloat(img.style.maxWidth || img.style.width || '50') || 50;
+        if (action === 'del') {
+          let t = wrap;
+          while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+          const p = document.createElement('p'); p.innerHTML = '<br>';
+          if (t && t !== editor) { t.after(p); t.remove(); } else { wrap.remove(); }
+          setTimeout(syncFn, 50); return;
         }
-        if(action==='smaller'){const ns=Math.max(10,curSz-10)+'%';img.style.maxWidth=ns;img.style.width=ns;}
-        if(action==='bigger'){const ns=Math.min(100,curSz+10)+'%';img.style.maxWidth=ns;img.style.width=ns;}
-        if(action==='left'){
-          wrap.style.cssText='overflow:visible;margin:4px 0 12px;position:relative;display:block;';
-          img.style.cssText=`width:${curSz}%;float:left;margin:0 18px 12px 0;border-radius:8px;border:1px solid #e4e8f0;`;
+        if (action === 'smaller') { const ns = Math.max(10, curSz-10)+'%'; img.style.maxWidth=ns; img.style.width=ns; }
+        if (action === 'bigger')  { const ns = Math.min(100,curSz+10)+'%'; img.style.maxWidth=ns; img.style.width=ns; }
+        if (action === 'left') {
+          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+          img.style.cssText = 'width:'+curSz+'%;float:left;margin:0 18px 8px 0;border-radius:8px;border:1px solid #e4e8f0;';
         }
-        if(action==='right'){
-          wrap.style.cssText='overflow:visible;margin:4px 0 12px;position:relative;display:block;';
-          img.style.cssText=`width:${curSz}%;float:right;margin:0 0 12px 18px;border-radius:8px;border:1px solid #e4e8f0;`;
+        if (action === 'right') {
+          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+          img.style.cssText = 'width:'+curSz+'%;float:right;margin:0 0 8px 18px;border-radius:8px;border:1px solid #e4e8f0;';
         }
-        if(action==='center'){
-          wrap.style.cssText='text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
-          img.style.cssText=`max-width:${curSz}%;display:inline-block;float:none;border-radius:8px;border:1px solid #e4e8f0;`;
+        if (action === 'center') {
+          wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+          img.style.cssText = 'max-width:'+curSz+'%;display:inline-block;float:none;border-radius:8px;border:1px solid #e4e8f0;';
         }
-        if(action==='up'){
-          let t=wrap;while(t&&t.parentElement!==editor)t=t.parentElement;
-          if(t?.previousElementSibling)editor.insertBefore(t,t.previousElementSibling);
+        if (action === 'up') {
+          let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
+          if (t && t.previousElementSibling) editor.insertBefore(t, t.previousElementSibling);
         }
-        if(action==='down'){
-          let t=wrap;while(t&&t.parentElement!==editor)t=t.parentElement;
-          if(t?.nextElementSibling)editor.insertBefore(t.nextElementSibling,t);
+        if (action === 'down') {
+          let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
+          if (t && t.nextElementSibling) editor.insertBefore(t.nextElementSibling, t);
         }
-        setTimeout(syncFn,50);
+        setTimeout(syncFn, 50);
       });
     });
+    return wrap;
+  }
 
-    // Inserim al cursor actual o al final
-    const sel=window.getSelection();
-    if(sel.rangeCount&&editor.contains(sel.anchorNode)){
-      const range=sel.getRangeAt(0);
+  function insertImageFromSrc(editor, src, name, syncFn) {
+    const wrap = makeImgWrap(src, name, syncFn, editor);
+    editor.focus();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+      const range = sel.getRangeAt(0);
       range.deleteContents();
       range.insertNode(wrap);
-      const p=document.createElement('p');p.innerHTML='<br>';
+      const p = document.createElement('p'); p.innerHTML = '<br>';
       wrap.after(p);
-      range.setStartAfter(p);range.collapse(true);
-      sel.removeAllRanges();sel.addRange(range);
-    }else{
+      range.setStartAfter(p); range.collapse(true);
+      sel.removeAllRanges(); sel.addRange(range);
+    } else {
       editor.appendChild(wrap);
-      const p=document.createElement('p');p.innerHTML='<br>';
+      const p = document.createElement('p'); p.innerHTML = '<br>';
       editor.appendChild(p);
     }
-    setTimeout(syncFn,50);
+    setTimeout(syncFn, 50);
   }
 
   function buildImageHTML(url, cap, pos, size) {
@@ -930,18 +934,19 @@ function showTab(n){
       insertHTML(editor,`<div data-ud-vid="${id}" class="ud-video-hover ud-video-wrap" contenteditable="false" draggable="true"><div class="ud-vid-controls"><button class="ud-vid-move" data-dir="up" title="Moure amunt">↑</button><button class="ud-vid-move" data-dir="down" title="Moure avall">↓</button><button class="ud-del-btn-inline" title="Eliminar">🗑</button></div><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
     });
 
-    // Botó imatge: obre selector de fitxer local O accepta enganxar
     const bImg=document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
-    bImg.title='Clica per triar una foto, o copia una imatge i prem Ctrl+V al quadre de text';
+    bImg.title='Clica per triar una foto del teu ordinador, o copia i prem Ctrl+V al quadre de text';
     bImg.onclick=()=>{
       const input=document.createElement('input');
       input.type='file'; input.accept='image/*';
+      input.style.display='none';
+      document.body.appendChild(input);
       input.onchange=()=>{
-        const file=input.files[0]; if(!file)return;
+        const file=input.files[0];
+        document.body.removeChild(input);
+        if(!file)return;
         const reader=new FileReader();
-        reader.onload=ev=>{
-          insertImageFromSrc(editor, ev.target.result, file.name, syncFn);
-        };
+        reader.onload=ev=>insertImageFromSrc(editor, ev.target.result, file.name, syncFn);
         reader.readAsDataURL(file);
       };
       input.click();
