@@ -645,12 +645,11 @@ function showTab(n){
     .ud-editor{width:100%;min-height:400px;padding:16px;border:1.5px solid #c8d0e8;border-radius:0 0 8px 8px;font-family:inherit;font-size:15px;line-height:1.85;outline:none;background:#fffdf5;overflow-y:auto}
     .ud-editor:focus{border-color:#1a2744;box-shadow:0 0 0 3px #1a274414}
     .ud-editor p{margin-bottom:12px}
-    .ud-img-wrap-outer{position:relative!important}
-    .ud-img-controls{position:absolute;top:6px;left:6px;z-index:100;display:flex;gap:3px;background:rgba(26,39,68,0.82);border-radius:7px;padding:4px 5px;opacity:0;transition:opacity .15s}
-    .ud-img-wrap-outer:hover .ud-img-controls{opacity:1}
-    .ud-img-ctrl-btn{border:none;background:rgba(255,255,255,0.15);color:white;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;line-height:1}
-    .ud-img-ctrl-btn:hover{background:rgba(255,255,255,0.35)}
-    .ud-img-del{background:rgba(193,39,45,0.7)!important}
+    .ud-img-wrap-outer{position:relative!important;display:inline-block}
+    .ud-img-controls{position:absolute;top:4px;left:4px;z-index:100;display:flex;gap:2px;background:rgba(26,39,68,0.85);border-radius:7px;padding:3px 4px}
+    .ud-img-ctrl-btn{border:none;background:rgba(255,255,255,0.15);color:white;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;line-height:1}
+    .ud-img-ctrl-btn:hover{background:rgba(255,255,255,0.4)}
+    .ud-img-del{background:rgba(193,39,45,0.85)!important}
     .ud-img-del:hover{background:#c1272d!important}
     .ud-vid-controls{display:none;position:absolute;top:8px;right:8px;z-index:10;display:none;gap:4px;background:rgba(26,39,68,0.85);border-radius:8px;padding:4px 6px;align-items:center}
     .ud-video-hover:hover .ud-vid-controls{display:flex}
