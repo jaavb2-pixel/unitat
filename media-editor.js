@@ -422,12 +422,23 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       if (!html.includes('<')) return html.split('\n').filter(p=>p.trim()).map(p=>`<p>${p}</p>`).join('');
       const tmp = document.createElement('div');
       tmp.innerHTML = html;
+      // Eliminar tots els controls d'edició
+      tmp.querySelectorAll('.ud-img-controls,.ud-vid-controls,.ud-img-ctrl-btn,.ud-vid-move,.ud-del-btn-inline').forEach(el=>el.remove());
       tmp.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
-      tmp.querySelectorAll('[data-ud-img],[data-ud-link]').forEach(el=>{
-        el.removeAttribute('data-ud-img'); el.removeAttribute('data-ud-link');
+      tmp.querySelectorAll('[data-ud-img],[data-ud-link],[data-ud-vid]').forEach(el=>{
+        el.removeAttribute('data-ud-img'); el.removeAttribute('data-ud-link'); el.removeAttribute('data-ud-vid');
       });
-      // Convertim iframes de YouTube en targetes clicables (funciona en fitxers locals)
-      tmp.querySelectorAll('.ud-video-wrap, [data-ud-vid]').forEach(wrap => {
+      // Arreglem els contenidors d'imatge: overflow:hidden impedeix el float
+      tmp.querySelectorAll('.ud-img-wrap-outer').forEach(wrap=>{
+        wrap.classList.remove('ud-img-wrap-outer');
+        // Si la imatge té float, el wrapper no pot tenir overflow:hidden
+        const img = wrap.querySelector('img');
+        if(img && (img.style.float==='left'||img.style.float==='right')) {
+          wrap.style.overflow = 'visible';
+        }
+      });
+      // Convertim iframes de YouTube en targetes clicables
+      tmp.querySelectorAll('.ud-video-wrap,[data-ud-vid],.ud-video-hover').forEach(wrap => {
         const iframe = wrap.querySelector('iframe');
         const caption = wrap.querySelector('.ud-video-caption');
         if (!iframe) return;
@@ -437,15 +448,10 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
         const capText = caption ? caption.textContent.replace('▶','').trim() : 'Veure vídeo a YouTube';
         const thumb = `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`;
         const ytUrl = `https://www.youtube.com/watch?v=${vidId}`;
-        wrap.outerHTML = `<div class="yt-card">
-          <a href="${ytUrl}" target="_blank" class="yt-link">
-            <div class="yt-thumb-wrap">
-              <img src="${thumb}" class="yt-thumb" alt="${capText}">
-              <div class="yt-play"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
-            </div>
-            <div class="yt-caption">${capText}</div>
-          </a>
-        </div>`;
+        const card = document.createElement('div');
+        card.className = 'yt-card';
+        card.innerHTML = `<a href="${ytUrl}" target="_blank" class="yt-link"><div class="yt-thumb-wrap"><img src="${thumb}" class="yt-thumb" alt="${capText}"><div class="yt-play"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div></div><div class="yt-caption">${capText}</div></a>`;
+        wrap.replaceWith(card);
       });
       return tmp.innerHTML;
     };
@@ -510,11 +516,14 @@ body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;fon
 .sess-text p{margin-bottom:13px}
 .sess-text p:last-child{margin-bottom:0}
 .sess-text::after{content:'';display:table;clear:both}
-.sess-text img{border-radius:8px;border:1px solid #e4e8f0}
+.sess-text img{border-radius:8px;border:1px solid #e4e8f0;max-width:100%}
+.sess-text img[style*="float:left"]{float:left;margin:0 18px 12px 0}
+.sess-text img[style*="float:right"]{float:right;margin:0 0 12px 18px}
 .sess-text strong{font-weight:700}
 .sess-text em{font-style:italic}
 .sess-text u{text-decoration:underline}
 .sess-text a{color:#1a2744;font-weight:600;text-decoration:underline}
+.sess-text div[style*="float"]{overflow:visible!important}
 .ud-video-wrap{margin:16px 0;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0;clear:both}
 .ud-video-wrap iframe{width:100%;height:260px;border:none;display:block}
 .ud-video-caption{background:#1a2744;color:white;font-size:12px;padding:6px 12px;text-align:center}
@@ -645,7 +654,8 @@ function showTab(n){
     .ud-editor{width:100%;min-height:400px;padding:16px;border:1.5px solid #c8d0e8;border-radius:0 0 8px 8px;font-family:inherit;font-size:15px;line-height:1.85;outline:none;background:#fffdf5;overflow-y:auto}
     .ud-editor:focus{border-color:#1a2744;box-shadow:0 0 0 3px #1a274414}
     .ud-editor p{margin-bottom:12px}
-    .ud-img-wrap-outer{position:relative!important;display:inline-block}
+    .ud-img-wrap-outer{position:relative!important;display:block}
+    .ud-img-wrap-outer[style*="overflow:hidden"]{overflow:visible!important}
     .ud-img-controls{position:absolute;top:4px;left:4px;z-index:100;display:flex;gap:2px;background:rgba(26,39,68,0.85);border-radius:7px;padding:3px 4px}
     .ud-img-ctrl-btn{border:none;background:rgba(255,255,255,0.15);color:white;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;line-height:1}
     .ud-img-ctrl-btn:hover{background:rgba(255,255,255,0.4)}
@@ -772,8 +782,6 @@ function showTab(n){
     wrap.className='ud-img-wrap-outer';
     wrap.contentEditable='false';
     wrap.style.cssText='text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
-
-    const controls = document.createElement('div');
     controls.className='ud-img-controls';
     controls.innerHTML=`
       <button class="ud-img-ctrl-btn" data-action="up" title="Moure amunt">↑</button>
@@ -809,11 +817,11 @@ function showTab(n){
         if(action==='smaller'){const ns=Math.max(10,curSz-10)+'%';img.style.maxWidth=ns;img.style.width=ns;}
         if(action==='bigger'){const ns=Math.min(100,curSz+10)+'%';img.style.maxWidth=ns;img.style.width=ns;}
         if(action==='left'){
-          wrap.style.cssText='overflow:hidden;margin:4px 0 12px;position:relative;display:block;';
+          wrap.style.cssText='overflow:visible;margin:4px 0 12px;position:relative;display:block;';
           img.style.cssText=`width:${curSz}%;float:left;margin:0 18px 12px 0;border-radius:8px;border:1px solid #e4e8f0;`;
         }
         if(action==='right'){
-          wrap.style.cssText='overflow:hidden;margin:4px 0 12px;position:relative;display:block;';
+          wrap.style.cssText='overflow:visible;margin:4px 0 12px;position:relative;display:block;';
           img.style.cssText=`width:${curSz}%;float:right;margin:0 0 12px 18px;border-radius:8px;border:1px solid #e4e8f0;`;
         }
         if(action==='center'){
@@ -867,7 +875,7 @@ function showTab(n){
     }
     const floatDir = pos === 'left' ? 'left' : 'right';
     const margin   = pos === 'left' ? '0 18px 12px 0' : '0 0 12px 18px';
-    return `<div data-ud-img="1" class="ud-img-wrap-outer" style="overflow:hidden;margin:4px 0 12px;position:relative;" contenteditable="false">${controls}<img src="${url}" alt="${cap||''}" style="width:${sz}%;float:${floatDir};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;">${cap?`<div style="font-size:11px;color:#888;text-align:${floatDir};font-style:italic;margin-top:3px">${cap}</div>`:''}</div><p style="clear:none"><br></p>`;
+    return `<div data-ud-img="1" class="ud-img-wrap-outer" style="overflow:visible;margin:4px 0 12px;position:relative;" contenteditable="false">${controls}<img src="${url}" alt="${cap||''}" style="width:${sz}%;float:${floatDir};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;">${cap?`<div style="font-size:11px;color:#888;text-align:${floatDir};font-style:italic;margin-top:3px">${cap}</div>`:''}</div><p style="clear:none"><br></p>`;
   }
 
   function insertHTML(editor, html, syncFn) {
@@ -1048,11 +1056,11 @@ function showTab(n){
           img.style.width = ns; img.style.maxWidth = ns;
         }
         if (action === 'left') {
-          wrap.style.cssText = 'overflow:hidden;margin:4px 0 12px;position:relative;';
+          wrap.style.cssText = 'overflow:visible;margin:4px 0 12px;position:relative;';
           img.style.cssText = `width:${curSz}%;float:left;margin:0 18px 12px 0;border-radius:8px;border:1px solid #e4e8f0;`;
         }
         if (action === 'right') {
-          wrap.style.cssText = 'overflow:hidden;margin:4px 0 12px;position:relative;';
+          wrap.style.cssText = 'overflow:visible;margin:4px 0 12px;position:relative;';
           img.style.cssText = `width:${curSz}%;float:right;margin:0 0 12px 18px;border-radius:8px;border:1px solid #e4e8f0;`;
         }
         if (action === 'center') {
@@ -1165,7 +1173,7 @@ function showTab(n){
           img.style.cssText = `max-width:${curWidth};border-radius:8px;border:1px solid #e4e8f0;display:inline-block;float:none;`;
         } else {
           const margin = pos==='left'?'0 18px 12px 0':'0 0 12px 18px';
-          container.style.cssText = 'overflow:hidden;margin:4px 0 12px;';
+          container.style.cssText = 'overflow:visible;margin:4px 0 12px;';
           img.style.cssText = `width:${curWidth};float:${pos};margin:${margin};border-radius:8px;border:1px solid #e4e8f0;`;
         }
         syncFn(); panel.remove(); return;
