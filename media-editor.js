@@ -1283,24 +1283,9 @@ function showTab(n){
       });
       setupHeader();
       injectSASection();
-      interceptSaveButton();
     }).observe(document.body,{childList:true,subtree:true});
 
-    [500,1000,2000,3000].forEach(t=>setTimeout(()=>{setupHeader();injectSASection();interceptSaveButton();},t));
-  }
-
-  // Intercepta el botó Desar per actualitzar en lloc de crear una entrada nova
-  function interceptSaveButton() {
-    document.querySelectorAll('button').forEach(btn => {
-      const txt = btn.textContent?.trim() || '';
-      if ((txt.includes('💾') || txt.toLowerCase().includes('desar')) && !btn.dataset.udSaveFixed) {
-        btn.dataset.udSaveFixed = 'true';
-        btn.addEventListener('click', () => {
-          // Esperem que React guarde primer, llavors deduplicam
-          setTimeout(fixSavedSessions, 300);
-        }, true);
-      }
-    });
+    [500,1000,2000,3000].forEach(t=>setTimeout(()=>{setupHeader();injectSASection();},t));
   }
 
   // Elimina duplicats del localStorage, mantenint només l'entrada més recent per títol
