@@ -975,10 +975,21 @@ function showTab(n){
     // Usem el setter natiu per forçar que React detecte el canvi
     const nativeInputSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
     const syncToTextarea = () => {
+      // Per al textarea de React, enviem una versió lleugera sense base64
+      // Les imatges les llegim directament del DOM editor quan exportem
+      const tmp = document.createElement('div');
+      tmp.innerHTML = editor.innerHTML;
+      // Substituïm base64 per un marcador lleuger per no bloquejar React
+      tmp.querySelectorAll('img[src^="data:"]').forEach((img, i) => {
+        img.setAttribute('src', img.src); // mantenim però truncarem
+      });
+      // Eliminem els controls visuals (no cal guardar-los a React)
+      tmp.querySelectorAll('.ud-img-controls,.ud-vid-controls').forEach(el => el.remove());
+      const lightweight = tmp.innerHTML;
       if (nativeInputSetter) {
-        nativeInputSetter.call(textarea, editor.innerHTML);
+        nativeInputSetter.call(textarea, lightweight);
       } else {
-        textarea.value = editor.innerHTML;
+        textarea.value = lightweight;
       }
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
@@ -999,19 +1010,23 @@ function showTab(n){
     });
 
     // Quan React actualitza el textarea externament (IA genera contingut)
-    let lastVal=textarea.value;
-    setInterval(()=>{
-      if(textarea.value!==lastVal&&textarea.value!==editor.innerHTML){
-        lastVal=textarea.value;
-        // Si ve text pla (de la IA), convertim a paràgrafs
-        const v=textarea.value;
-        if(!v.includes('<')){
-          editor.innerHTML=v.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')||'<p><br></p>';
-        } else {
-          editor.innerHTML=v;
+    let lastVal = textarea.value;
+    setInterval(() => {
+      if (textarea.value !== lastVal) {
+        lastVal = textarea.value;
+        // Només actualitzem l'editor si ve de la IA (text pla)
+        // Si l'editor ja té imatges, no el sobreescrivim
+        const hasImages = editor.querySelector('img, [data-ud-img], [data-ud-vid]');
+        if (!hasImages) {
+          const v = textarea.value;
+          if (!v.includes('<')) {
+            editor.innerHTML = v.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('') || '<p><br></p>';
+          } else {
+            editor.innerHTML = v;
+          }
         }
       }
-    },300);
+    }, 300);
 
     // Element seleccionat (imatge o video)
     let selectedEl = null;
