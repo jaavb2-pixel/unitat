@@ -45,7 +45,14 @@
       const textareas = card.querySelectorAll('textarea');
 
       if (editors.length >= 1) {
-        contingut = editors[0].innerHTML;
+        // Restaurem les imatges reals des del magatzem
+        const editorHTML = editors[0].cloneNode(true);
+        editorHTML.querySelectorAll('img[data-udid]').forEach(img => {
+          const id = img.getAttribute('data-udid');
+          if (window._udImgStore && window._udImgStore[id]) img.src = window._udImgStore[id];
+        });
+        editorHTML.querySelectorAll('.ud-img-controls,.ud-vid-controls').forEach(el=>el.remove());
+        contingut = editorHTML.innerHTML;
       } else {
         textareas.forEach(ta => {
           if (parseInt(ta.getAttribute('rows')||0) === 8) contingut = ta.value;
@@ -655,18 +662,17 @@ function showTab(n){
     .ud-editor:focus{border-color:#1a2744;box-shadow:0 0 0 3px #1a274414}
     .ud-editor p{margin-bottom:12px}
     .ud-img-wrap-outer{position:relative!important;display:block}
-    .ud-img-wrap-outer[style*="overflow:hidden"]{overflow:visible!important}
-    .ud-img-controls{position:absolute;top:4px;left:4px;z-index:100;display:flex;gap:2px;background:rgba(26,39,68,0.85);border-radius:7px;padding:3px 4px}
-    .ud-img-ctrl-btn{border:none;background:rgba(255,255,255,0.15);color:white;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;line-height:1}
+    .ud-img-controls{position:absolute;top:4px;left:4px;z-index:100;display:flex;gap:2px;background:rgba(26,39,68,0.9);border-radius:7px;padding:3px 4px}
+    .ud-img-ctrl-btn{border:none;background:rgba(255,255,255,0.2);color:white;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;line-height:1}
     .ud-img-ctrl-btn:hover{background:rgba(255,255,255,0.4)}
-    .ud-img-del{background:rgba(193,39,45,0.85)!important}
+    .ud-img-del{background:rgba(193,39,45,0.9)!important}
     .ud-img-del:hover{background:#c1272d!important}
-    .ud-vid-controls{display:none;position:absolute;top:8px;right:8px;z-index:10;display:none;gap:4px;background:rgba(26,39,68,0.85);border-radius:8px;padding:4px 6px;align-items:center}
-    .ud-video-hover:hover .ud-vid-controls{display:flex}
-    .ud-vid-move,.ud-del-btn-inline{border:none;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit}
-    .ud-vid-move{background:rgba(255,255,255,0.15);color:white}
-    .ud-vid-move:hover{background:rgba(255,255,255,0.3)}
-    .ud-del-btn-inline{background:rgba(193,39,45,0.8);color:white}
+    .ud-video-hover{position:relative;display:block;margin:14px 0}
+    .ud-vid-controls{display:flex;position:absolute;top:8px;right:8px;z-index:100;gap:4px;background:rgba(26,39,68,0.9);border-radius:8px;padding:4px 6px;align-items:center}
+    .ud-vid-move,.ud-del-btn-inline{border:none;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit}
+    .ud-vid-move{background:rgba(255,255,255,0.2);color:white}
+    .ud-vid-move:hover{background:rgba(255,255,255,0.4)}
+    .ud-del-btn-inline{background:rgba(193,39,45,0.9);color:white}
     .ud-del-btn-inline:hover{background:#c1272d}
     .ud-video-wrap{margin:14px 0;border-radius:8px;overflow:hidden;border:1px solid #c8d0e8}
     .ud-video-wrap iframe{width:100%;height:200px;border:none;display:block}
@@ -974,25 +980,37 @@ function showTab(n){
     // Sincronitza innerHTML (preserva links, imatges i vídeos)
     // Usem el setter natiu per forçar que React detecte el canvi
     const nativeInputSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+
+    // Magatzem d'imatges base64 (no van al textarea per no bloquejar React)
+    if (!window._udImgStore) window._udImgStore = {};
+
     const syncToTextarea = () => {
-      // Per al textarea de React, enviem una versió lleugera sense base64
-      // Les imatges les llegim directament del DOM editor quan exportem
       const tmp = document.createElement('div');
       tmp.innerHTML = editor.innerHTML;
-      // Substituïm base64 per un marcador lleuger per no bloquejar React
-      tmp.querySelectorAll('img[src^="data:"]').forEach((img, i) => {
-        img.setAttribute('src', img.src); // mantenim però truncarem
-      });
-      // Eliminem els controls visuals (no cal guardar-los a React)
+      // Elimina controls visuals
       tmp.querySelectorAll('.ud-img-controls,.ud-vid-controls').forEach(el => el.remove());
-      const lightweight = tmp.innerHTML;
-      if (nativeInputSetter) {
-        nativeInputSetter.call(textarea, lightweight);
-      } else {
-        textarea.value = lightweight;
-      }
+      // Substitueix base64 per ID curt per no bloquejar React
+      tmp.querySelectorAll('img[src^="data:"]').forEach(img => {
+        const existing = img.getAttribute('data-udid');
+        if (existing) return; // ja processat
+        const id = 'udimg_' + Math.random().toString(36).slice(2,8);
+        window._udImgStore[id] = img.src;
+        img.setAttribute('data-udid', id);
+        img.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'); // 1px transparent
+      });
+      const val = tmp.innerHTML;
+      if (nativeInputSetter) nativeInputSetter.call(textarea, val);
+      else textarea.value = val;
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    // Restaura les imatges reals a l'editor des del magatzem
+    const restoreImages = () => {
+      editor.querySelectorAll('img[data-udid]').forEach(img => {
+        const id = img.getAttribute('data-udid');
+        if (window._udImgStore[id]) img.src = window._udImgStore[id];
+      });
     };
     editor.addEventListener('input', syncToTextarea);
 
