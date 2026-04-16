@@ -590,15 +590,96 @@ function showTab(n){
 </body></html>`;
   }
 
+  // ── EXPORTAR / IMPORTAR UNITATS ─────────────────────────────────
+  function exportUnits() {
+    const units = localStorage.getItem('ud_units') || '[]';
+    const blob = new Blob([units], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'unitats_didactiques_' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToastUD('📦 Unitats exportades!');
+  }
+
+  function importUnits() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.onchange = () => {
+      const file = input.files[0];
+      document.body.removeChild(input);
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const units = JSON.parse(e.target.result);
+          if (!Array.isArray(units)) throw new Error('Format incorrecte');
+          // Fusiona: afegim les unitats importades sense sobreescriure les existents
+          const existing = JSON.parse(localStorage.getItem('ud_units') || '[]');
+          const existingIds = new Set(existing.map(u => u.id));
+          const news = units.filter(u => !existingIds.has(u.id));
+          const merged = [...news, ...existing];
+          localStorage.setItem('ud_units', JSON.stringify(merged));
+          showToastUD(`✅ ${news.length} unitats importades!`);
+        } catch(err) {
+          showToastUD('❌ Fitxer invàlid', true);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+
+  function showToastUD(msg, isErr) {
+    let t = document.getElementById('ud-toast-drive');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'ud-toast-drive';
+      t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;box-shadow:0 4px 16px rgba(0,0,0,0.2);transition:opacity .3s';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = isErr ? '#c1272d' : '#1a2744';
+    t.style.color = 'white';
+    t.style.opacity = '1';
+    clearTimeout(t._to);
+    t._to = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+  }
+
   // ── MODIFICA LA CAPÇALERA ────────────────────────────────────────
   function setupHeader() {
     const container = document.querySelector('.header-actions');
     if (!container) return;
 
-    // 1. Elimina el botó "App HTML"
+    // Elimina el botó "App HTML"
     container.querySelectorAll('a, button').forEach(el => {
       if (el.textContent?.includes('App HTML')) el.remove();
     });
+
+    // Botons exportar / importar
+    if (!document.getElementById('ud-export-btn')) {
+      const btnExp = document.createElement('button');
+      btnExp.id = 'ud-export-btn';
+      btnExp.className = 'btn btn-sm btn-outline header-btn';
+      btnExp.textContent = '📦 Exportar';
+      btnExp.title = 'Exporta totes les unitats a un fitxer .json';
+      btnExp.onclick = exportUnits;
+      container.appendChild(btnExp);
+    }
+
+    if (!document.getElementById('ud-import-btn')) {
+      const btnImp = document.createElement('button');
+      btnImp.id = 'ud-import-btn';
+      btnImp.className = 'btn btn-sm btn-outline header-btn';
+      btnImp.textContent = '📂 Importar';
+      btnImp.title = 'Importa unitats des d\'un fitxer .json';
+      btnImp.onclick = importUnits;
+      container.appendChild(btnImp);
+    }
 
     // 2. Botó HTML Presentació
     if (!document.getElementById('ud-html-btn')) {
