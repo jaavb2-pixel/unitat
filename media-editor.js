@@ -1110,11 +1110,19 @@ function showTab(n){
 
     // Quan React actualitza el textarea externament (IA genera contingut)
     let lastVal = textarea.value;
+    let isTyping = false;
+    let typingTimer = null;
+
+    editor.addEventListener('keydown', () => {
+      isTyping = true;
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => { isTyping = false; }, 1000);
+    });
+
     setInterval(() => {
+      if (isTyping) return; // no sobreescrivim mentre l'usuari escriu
       if (textarea.value !== lastVal) {
         lastVal = textarea.value;
-        // Només actualitzem l'editor si ve de la IA (text pla)
-        // Si l'editor ja té imatges, no el sobreescrivim
         const hasImages = editor.querySelector('img, [data-ud-img], [data-ud-vid]');
         if (!hasImages) {
           const v = textarea.value;
