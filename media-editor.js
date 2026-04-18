@@ -338,15 +338,10 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       x:0.5, y:3.8, w:8.5, h:0.4,
       fontSize:14, color:'aab4c8', align:'left'
     });
-    // Decret
-    cover.addText('Decret 107/2022 · LOMLOE · Comunitat Valenciana', {
+    // Signatura
+    cover.addText('Josep Antoni fecit me', {
       x:0.5, y:4.9, w:8.5, h:0.3,
       fontSize:10, color:'667788', align:'left', italic:true
-    });
-    // Data
-    cover.addText(new Date().toLocaleDateString('ca-ES',{year:'numeric',month:'long',day:'numeric'}), {
-      x:0.5, y:5.3, w:8.5, h:0.3,
-      fontSize:10, color:'556677', align:'left'
     });
 
     // ── DIAPOSITIVA SA ──
@@ -688,7 +683,7 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
       ${nivellText?`<div class="cover-meta-item"><div class="cover-meta-label">Nivell</div><div class="cover-meta-value">${nivellText}</div></div>`:''}
       <div class="cover-meta-item"><div class="cover-meta-label">Sessions</div><div class="cover-meta-value">${sessList.length} sessions</div></div>
     </div>
-    <div class="cover-footer">LOMLOE · Decret 107/2022 · Comunitat Valenciana · ${date}</div>
+    <div class="cover-footer">Josep Antoni fecit me</div>
   </div>
 </section>
 
@@ -998,7 +993,7 @@ a[style*="width"] .yt-thumb-wrap,.yt-thumb-wrap{position:relative;overflow:hidde
 
 <section class="cover">
   <div class="cover-inner">
-    <div class="cover-eyebrow">Unitat Didàctica · LOMLOE</div>
+    <div class="cover-eyebrow">Josep Antoni fecit me</div>
     <h1 class="cover-title">${titol||'Unitat Didàctica'}</h1>
     <div class="cover-meta">
       ${assignatura?`<div class="cover-meta-item"><span class="cover-meta-label">Àrea</span><span class="cover-meta-value">${assignatura}</span></div>`:''}
