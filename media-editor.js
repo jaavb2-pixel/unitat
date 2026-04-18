@@ -455,9 +455,21 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
         const capText = caption ? caption.textContent.replace('▶','').trim() : 'Veure vídeo a YouTube';
         const thumb = `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`;
         const ytUrl = `https://www.youtube.com/watch?v=${vidId}`;
+        // Mida i posició del vidBox
+        const vidBox = wrap.querySelector('.ud-vid-box');
+        const w = vidBox ? vidBox.style.width || '40%' : '40%';
+        const isLeft  = vidBox && vidBox.style.float === 'left';
+        const isRight = vidBox && vidBox.style.float === 'right';
+        const floatStyle = isLeft ? `float:left;margin:0 18px 8px 0;` : isRight ? `float:right;margin:0 0 8px 18px;` : `display:inline-block;`;
         const card = document.createElement('div');
-        card.className = 'yt-card';
-        card.innerHTML = `<a href="${ytUrl}" target="_blank" class="yt-link"><div class="yt-thumb-wrap"><img src="${thumb}" class="yt-thumb" alt="${capText}"><div class="yt-play"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div></div><div class="yt-caption">${capText}</div></a>`;
+        card.style.cssText = isLeft||isRight ? `overflow:visible;margin:8px 0;` : `text-align:center;clear:both;margin:14px 0;`;
+        card.innerHTML = `<a href="${ytUrl}" target="_blank" style="${floatStyle}width:${w};text-decoration:none;">
+          <div style="position:relative;width:100%;padding-bottom:56.25%;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;">
+            <img src="${thumb}" alt="${capText}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"><svg viewBox="0 0 68 48" width="48" height="34"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
+          </div>
+          ${capText ? `<div style="background:#1a2744;color:white;font-size:12px;padding:5px 10px;text-align:center;border-radius:0 0 8px 8px;">${capText}</div>` : ''}
+        </a>`;
         wrap.replaceWith(card);
       });
       return tmp.innerHTML;
@@ -949,6 +961,96 @@ function showTab(n){
     setTimeout(syncFn, 50);
   }
 
+  function makeVidWrap(id, cap, syncFn, editor) {
+    const wrap = document.createElement('div');
+    wrap.setAttribute('data-ud-vid', id);
+    wrap.className = 'ud-img-wrap-outer'; // reutilitzem els mateixos estils
+    wrap.contentEditable = 'false';
+    wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+
+    const controls = document.createElement('div');
+    controls.className = 'ud-img-controls ud-vid-controls';
+    controls.innerHTML =
+      '<button class="ud-img-ctrl-btn" data-action="up">↑</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="down">↓</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="smaller">−</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="bigger">+</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="left">←</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="center">↕</button>' +
+      '<button class="ud-img-ctrl-btn" data-action="right">→</button>' +
+      '<button class="ud-img-ctrl-btn ud-img-del" data-action="del">🗑</button>';
+
+    // Contenidor del vídeo (quadrat per defecte al 40%)
+    const vidBox = document.createElement('div');
+    vidBox.className = 'ud-vid-box';
+    vidBox.style.cssText = 'display:inline-block;width:40%;position:relative;';
+
+    const iframe = document.createElement('iframe');
+    iframe.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+    iframe.setAttribute('allowfullscreen','');
+    iframe.setAttribute('allow','accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture');
+    // Proporció 16:9 via padding trick
+    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:8px;';
+
+    // Wrapper amb proporció 16:9
+    const ratio = document.createElement('div');
+    ratio.style.cssText = 'position:relative;width:100%;padding-bottom:56.25%;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;';
+    ratio.appendChild(iframe);
+    vidBox.appendChild(ratio);
+
+    if (cap) {
+      const capEl = document.createElement('div');
+      capEl.className = 'ud-video-caption';
+      capEl.textContent = '▶ ' + cap;
+      capEl.style.cssText = 'background:#1a2744;color:white;font-size:12px;padding:5px 10px;text-align:center;border-radius:0 0 8px 8px;';
+      vidBox.appendChild(capEl);
+    }
+
+    wrap.appendChild(controls);
+    wrap.appendChild(vidBox);
+
+    const getCurSz = () => parseFloat(vidBox.style.width)||40;
+
+    controls.querySelectorAll('.ud-img-ctrl-btn').forEach(btn => {
+      btn.addEventListener('mousedown', ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        const action = btn.dataset.action;
+        const curSz = getCurSz();
+        if (action === 'del') {
+          let t = wrap;
+          while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+          const p = document.createElement('p'); p.innerHTML = '<br>';
+          if (t && t !== editor) { t.after(p); t.remove(); } else { wrap.remove(); }
+          setTimeout(syncFn, 50); return;
+        }
+        if (action === 'smaller') vidBox.style.width = Math.max(15, curSz-10)+'%';
+        if (action === 'bigger')  vidBox.style.width = Math.min(100,curSz+10)+'%';
+        if (action === 'left') {
+          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+          vidBox.style.cssText = `display:block;width:${curSz}%;float:left;margin:0 18px 8px 0;`;
+        }
+        if (action === 'right') {
+          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+          vidBox.style.cssText = `display:block;width:${curSz}%;float:right;margin:0 0 8px 18px;`;
+        }
+        if (action === 'center') {
+          wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+          vidBox.style.cssText = `display:inline-block;width:${curSz}%;float:none;`;
+        }
+        if (action === 'up') {
+          let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
+          if (t && t.previousElementSibling) editor.insertBefore(t, t.previousElementSibling);
+        }
+        if (action === 'down') {
+          let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
+          if (t && t.nextElementSibling) editor.insertBefore(t.nextElementSibling, t);
+        }
+        setTimeout(syncFn, 50);
+      });
+    });
+    return wrap;
+  }
+
   function buildImageHTML(url, cap, pos, size) {
     const sz = size || '40';
     const controls = `<div class="ud-img-controls" contenteditable="false">
@@ -1018,7 +1120,24 @@ function showTab(n){
     ],({url,cap})=>{
       if(!url)return; const id=ytId(url);
       if(!id){alert('URL de YouTube no vàlida');return;}
-      insertHTML(editor,`<div data-ud-vid="${id}" class="ud-video-hover ud-video-wrap" contenteditable="false" draggable="true"><div class="ud-vid-controls"><button class="ud-vid-move" data-dir="up" title="Moure amunt">↑</button><button class="ud-vid-move" data-dir="down" title="Moure avall">↓</button><button class="ud-del-btn-inline" title="Eliminar">🗑</button></div><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"></iframe>${cap?`<div class="ud-video-caption">▶ ${cap}</div>`:''}</div><p><br></p>`, syncFn);
+      const vidWrap = makeVidWrap(id, cap, syncFn, editor);
+      // Inserim al cursor, igual que les imatges
+      editor.focus();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(vidWrap);
+        const p = document.createElement('p'); p.innerHTML = '<br>';
+        vidWrap.after(p);
+        range.setStartAfter(p); range.collapse(true);
+        sel.removeAllRanges(); sel.addRange(range);
+      } else {
+        editor.appendChild(vidWrap);
+        const p = document.createElement('p'); p.innerHTML = '<br>';
+        editor.appendChild(p);
+      }
+      setTimeout(syncFn, 50);
     });
 
     const bImg=document.createElement('button'); bImg.type='button'; bImg.textContent='🖼 Imatge';
@@ -1213,17 +1332,8 @@ function showTab(n){
       const vidWrap = e.target.closest('[data-ud-vid]');
       if (vidWrap) {
         e.preventDefault();
-        if (e.target.closest('.ud-del-btn-inline')) { selectElement(vidWrap); removeSelected(); return; }
-        if (e.target.closest('.ud-vid-move')) {
-          const dir = e.target.closest('.ud-vid-move').dataset.dir;
-          let el = vidWrap;
-          while (el && el.parentElement !== editor) el = el.parentElement;
-          if (!el) return;
-          if (dir==='up' && el.previousElementSibling) editor.insertBefore(el, el.previousElementSibling);
-          else if (dir==='down' && el.nextElementSibling) editor.insertBefore(el.nextElementSibling, el);
-          syncToTextarea(); return;
-        }
-        selectElement(vidWrap); return;
+        // Els controls ja estan gestionats per mousedown dins makeVidWrap
+        return;
       }
       const link = e.target.closest('[data-ud-link]');
       if (link) { e.preventDefault(); showLinkEditPanel(link, syncToTextarea); return; }
