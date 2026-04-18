@@ -795,20 +795,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     const container = document.querySelector('.header-actions');
     if (!container) return;
 
-    // Elimina botons originals de l'app React que no volem
-    // Els botons nous (HTML Alumnes, Canva, Exportar, Importar) tenen IDs que comencen per 'ud-'
-    container.querySelectorAll('button').forEach(btn => {
-      if (btn.id && btn.id.startsWith('ud-')) return; // no toquem els nostres
-      const txt = (btn.textContent || '').trim().toLowerCase();
-      // Eliminem els botons originals: HTML, DOC, PDF, App HTML
-      if (txt === 'html' || txt === 'doc' || txt === 'pdf' || txt.includes('app html')) {
-        btn.remove();
-      }
-    });
-    container.querySelectorAll('a').forEach(a => {
-      const txt = (a.textContent || '').trim().toLowerCase();
-      if (txt === 'html' || txt === 'doc' || txt === 'pdf' || txt.includes('app html')) {
-        a.remove();
+    // Elimina botons originals de l'app React en TOT el document
+    // Els botons tenen emojis i espais (ex: "⬇ HTML", "📄 DOC"), per això usem includes
+    document.querySelectorAll('button, a').forEach(el => {
+      if (el.id && el.id.startsWith('ud-')) return; // no toquem els nostres
+      const txt = (el.textContent || '').trim().toLowerCase();
+      // Protegim els botons que volem conservar
+      if (txt.includes('alumnes') || txt.includes('canva') || txt.includes('exportar') || txt.includes('importar')) return;
+      // Eliminem els botons originals
+      if (txt.includes('html') || txt.includes(' doc') || txt === 'doc' || txt.includes('pdf') || txt.includes('app html')) {
+        el.remove();
       }
     });
 
