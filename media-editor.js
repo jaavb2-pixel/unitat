@@ -476,11 +476,21 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
     const rs = getAppState();
     if (!rs) return base;
 
-    // Afegim els camps específics del professor que hi pugui haver al state
+    // Resol els IDs de CE/SB/CA a textos llegibles si tenim el catàleg al state
+    const resolveList = (ids) => {
+      if (!ids || !Array.isArray(ids) || !ids.length) return '';
+      // Si són strings simples, els tornem directament
+      if (typeof ids[0] === 'string' && ids[0].length > 30) return ids.join('\n');
+      // Si són IDs (p.ex. '1a', 'CE1'), els mostrem com a llista
+      return ids.map(id => typeof id === 'object' ? (id.nom || id.text || JSON.stringify(id)) : String(id)).join(', ');
+    };
+
+    // Afegim els camps reals del React state
     const extras = {
-      competenciesEspecifiques: rs.competenciesEspecifiques || rs.ce || '',
-      criterisAvaluacio: rs.criterisAvaluacio || rs.ca || '',
-      sabersBasics: rs.sabersBasics || rs.sb || '',
+      competenciesEspecifiques: resolveList(rs.selectedCE),
+      sabersBasics: resolveList(rs.selectedSB),
+      criterisAvaluacio: resolveList(rs.selectedCA),
+      dua: typeof rs.dua === 'string' ? rs.dua : (rs.dua ? JSON.stringify(rs.dua, null, 2) : ''),
       metodologia: rs.metodologia || '',
       avaluacio: rs.avaluacio || '',
       atencioDiversitat: rs.atencioDiversitat || rs.diversitat || '',
@@ -494,12 +504,12 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       idx: i+1,
       nom: s.nom || `Sessió ${i+1}`,
       objectiusOperatius: s.objectiusOperatius || '',
-      contingutProfessor: s.contingutProfessor || '',
+      contingutProfessor: s.contingutProfessor || s.guioClasse || '',
       contingutAlumne: base.sessions[i]?.contingut || s.contingutAlumne || '',
       exercicis: base.sessions[i]?.exercicis || s.exercicis || '',
       metodologia: s.metodologia || '',
-      recursos: s.recursos || '',
-      avaluacio: s.avaluacio || '',
+      recursos: s.recursos || s.materials || '',
+      avaluacio: s.avaluacio || s.criteris || '',
       temporitzacio: s.temporitzacio || s.duracio || '',
     }));
 
@@ -669,6 +679,7 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   ${data.sabersBasics ? `<h2 class="section-title">Sabers bàsics</h2><div class="box"><div class="box-text">${fmt(data.sabersBasics)}</div></div>` : ''}
   ${data.metodologia ? `<h2 class="section-title">Metodologia</h2><div class="box"><div class="box-text">${fmt(data.metodologia)}</div></div>` : ''}
   ${data.avaluacio ? `<h2 class="section-title">Avaluació</h2><div class="box"><div class="box-text">${fmt(data.avaluacio)}</div></div>` : ''}
+  ${data.dua ? `<h2 class="section-title">DUA · Disseny Universal d'Aprenentatge</h2><div class="box"><div class="box-text">${fmt(data.dua)}</div></div>` : ''}
   ${data.atencioDiversitat ? `<h2 class="section-title">Atenció a la diversitat</h2><div class="box"><div class="box-text">${fmt(data.atencioDiversitat)}</div></div>` : ''}
   ${data.recursos ? `<h2 class="section-title">Recursos</h2><div class="box"><div class="box-text">${fmt(data.recursos)}</div></div>` : ''}
   ${data.temporitzacio ? `<h2 class="section-title">Temporització</h2><div class="box"><div class="box-text">${fmt(data.temporitzacio)}</div></div>` : ''}
