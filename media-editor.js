@@ -470,6 +470,244 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
     pptx.writeFile({ fileName: (data.titol||'unitat').replace(/[^\w\s\-]/g,'').trim()+'_canva.pptx' });
   }
 
+  // ── RECOLLIDA DE DADES COMPLETA PER AL PROFESSOR ───────────────
+  function collectDataForTeacher() {
+    const base = collectData();
+    const rs = getAppState();
+    if (!rs) return base;
+
+    // Afegim els camps específics del professor que hi pugui haver al state
+    const extras = {
+      competenciesEspecifiques: rs.competenciesEspecifiques || rs.ce || '',
+      criterisAvaluacio: rs.criterisAvaluacio || rs.ca || '',
+      sabersBasics: rs.sabersBasics || rs.sb || '',
+      metodologia: rs.metodologia || '',
+      avaluacio: rs.avaluacio || '',
+      atencioDiversitat: rs.atencioDiversitat || rs.diversitat || '',
+      recursos: rs.recursos || '',
+      temporitzacio: rs.temporitzacio || '',
+      objectiusGenerals: rs.objectiusGenerals || rs.objectius || '',
+    };
+
+    // Per cada sessió, recollim més detall
+    const sessionsExt = (rs.sessions || []).map((s, i) => ({
+      idx: i+1,
+      nom: s.nom || `Sessió ${i+1}`,
+      objectiusOperatius: s.objectiusOperatius || '',
+      contingutProfessor: s.contingutProfessor || '',
+      contingutAlumne: base.sessions[i]?.contingut || s.contingutAlumne || '',
+      exercicis: base.sessions[i]?.exercicis || s.exercicis || '',
+      metodologia: s.metodologia || '',
+      recursos: s.recursos || '',
+      avaluacio: s.avaluacio || '',
+      temporitzacio: s.temporitzacio || s.duracio || '',
+    }));
+
+    return { ...base, ...extras, sessionsProf: sessionsExt };
+  }
+
+  // ── GENERA HTML DE LA UD PER AL PROFESSOR (PDF) ────────────────
+  function generateTeacherHTML(data) {
+    const { titol, assignatura, nivell, justificacio, sa, sessionsProf, sessions } = data;
+    const nivellText = nivell ? `${nivell}r d'ESO` : '';
+    const date = new Date().toLocaleDateString('ca-ES', {year:'numeric',month:'long',day:'numeric'});
+    const sessList = (sessionsProf && sessionsProf.length) ? sessionsProf : sessions.map((s,i)=>({...s, idx:i+1}));
+
+    const cleanContent = (html) => {
+      if (!html) return '';
+      if (!html.includes('<')) return html.split('\n').filter(p=>p.trim()).map(p=>`<p>${p}</p>`).join('');
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      tmp.querySelectorAll('.ud-img-controls,.ud-vid-controls,.ud-img-ctrl-btn').forEach(el=>el.remove());
+      tmp.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+      tmp.querySelectorAll('[data-ud-img],[data-ud-vid],[data-ud-link]').forEach(el=>{
+        el.removeAttribute('data-ud-img');el.removeAttribute('data-ud-vid');el.removeAttribute('data-ud-link');
+      });
+      // Vídeos com a targetes
+      tmp.querySelectorAll('[data-ud-vid],.ud-video-wrap,.ud-video-hover').forEach(wrap=>{
+        const iframe=wrap.querySelector('iframe');
+        if(!iframe)return;
+        const vidId=(iframe.src.match(/\/embed\/([a-zA-Z0-9_-]{11})/)||[])[1];
+        if(!vidId)return;
+        const caption=wrap.querySelector('.ud-video-caption');
+        const capText=caption?caption.textContent.replace('▶','').trim():'Veure al YouTube';
+        const card=document.createElement('div');
+        card.style.cssText='margin:12px 0;padding:10px 14px;background:#f9f8f4;border-left:3px solid #b8860b;border-radius:4px;font-size:13px';
+        card.innerHTML=`<div style="font-weight:600;color:#0d1526;margin-bottom:2px">🎥 ${capText}</div><div style="font-family:monospace;font-size:11px;color:#666">https://www.youtube.com/watch?v=${vidId}</div>`;
+        wrap.replaceWith(card);
+      });
+      return tmp.innerHTML;
+    };
+
+    const fmt = (text) => text ? text.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('') : '';
+
+    return `<!DOCTYPE html>
+<html lang="ca"><head><meta charset="UTF-8">
+<title>${titol||'Unitat Didàctica'} - Guia del professorat</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#0d1526;--ink-soft:#2c3548;--muted:#6b7280;--line:#e5e1d6;--bg:#ffffff;--gold:#b8860b;--gold-soft:#fef6dc}
+body{font-family:'Inter',sans-serif;background:white;color:var(--ink);font-size:11pt;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+/* PORTADA */
+.cover{min-height:95vh;display:flex;flex-direction:column;justify-content:space-between;padding:60mm 20mm 20mm;background:linear-gradient(135deg,#0d1526 0%,#1a2744 100%);color:white;position:relative;overflow:hidden;page-break-after:always}
+.cover::before{content:'';position:absolute;top:-100px;right:-100px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(184,134,11,.25),transparent 70%)}
+.cover-top{position:relative;z-index:2}
+.cover-eyebrow{display:flex;align-items:center;gap:12px;font-size:10pt;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:28px;font-weight:500}
+.cover-eyebrow::before{content:'';width:32px;height:1px;background:var(--gold)}
+.cover-title{font-family:'Fraunces',serif;font-size:42pt;font-weight:800;line-height:1.05;letter-spacing:-.02em;margin-bottom:16pt;max-width:90%}
+.cover-subtitle{font-family:'Fraunces',serif;font-size:16pt;font-weight:400;color:rgba(255,255,255,.75);font-style:italic}
+.cover-meta{position:relative;z-index:2;padding-top:22pt;border-top:1px solid rgba(255,255,255,.15);display:grid;grid-template-columns:repeat(3,1fr);gap:20pt}
+.cover-meta-item{}
+.cover-meta-label{font-size:8pt;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:4pt}
+.cover-meta-value{font-size:12pt;color:white;font-weight:500}
+.cover-footer{font-size:9pt;color:rgba(255,255,255,.35);letter-spacing:1px;text-transform:uppercase;margin-top:18pt}
+
+/* PÀGINES INTERIORS */
+.page{padding:18mm 20mm;page-break-after:always}
+.page:last-child{page-break-after:auto}
+.page-header{display:flex;align-items:baseline;justify-content:space-between;padding-bottom:10pt;border-bottom:1.5px solid var(--ink);margin-bottom:18pt}
+.page-title{font-family:'Fraunces',serif;font-size:22pt;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.page-tag{font-size:9pt;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);font-weight:700}
+
+/* SECCIONS */
+h2.section-title{font-family:'Fraunces',serif;font-size:16pt;font-weight:700;color:var(--ink);margin:18pt 0 10pt;padding-bottom:4pt;border-bottom:1px solid var(--line);letter-spacing:-.01em}
+h2.section-title:first-child{margin-top:0}
+h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--gold);margin:14pt 0 6pt}
+
+.box{background:#faf7f0;border:1px solid var(--line);border-radius:6pt;padding:12pt 16pt;margin-bottom:12pt}
+.box-gold{background:var(--gold-soft);border:1px solid #e8dfb5;border-left:4px solid var(--gold)}
+.box-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--gold);margin-bottom:6pt}
+.box-text{font-size:11pt;line-height:1.6;color:var(--ink-soft)}
+.box-text p{margin-bottom:6pt}
+.box-text p:last-child{margin-bottom:0}
+.box-text strong{color:var(--ink);font-weight:700}
+.box-text a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--gold)}
+.box-text img{max-width:100%;border-radius:4pt;border:1px solid var(--line);margin:6pt 0}
+.box-text ul, .box-text ol{margin:6pt 0 6pt 18pt}
+.box-text li{margin-bottom:3pt}
+
+/* GRAELLA SA */
+.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:10pt;margin-bottom:12pt}
+.sa-grid .sa-cell.full{grid-column:1/-1}
+
+/* SESSIONS - CAPÇALERA */
+.sess-header{display:flex;align-items:center;gap:14pt;padding-bottom:12pt;border-bottom:2px solid var(--ink);margin-bottom:16pt}
+.sess-num{min-width:44pt;height:44pt;background:var(--ink);color:white;border-radius:8pt;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:22pt;font-weight:800}
+.sess-head-text{flex:1}
+.sess-eyebrow{font-size:8pt;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:3pt}
+.sess-title{font-family:'Fraunces',serif;font-size:18pt;font-weight:700;color:var(--ink);line-height:1.15}
+
+/* PEU */
+.footer{text-align:center;padding-top:16pt;margin-top:16pt;border-top:1px solid var(--line);font-size:8pt;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+
+/* PRINT */
+@page{size:A4;margin:0}
+@media print{
+  body{background:white}
+  .cover,.page{break-after:page}
+  .box,.sess-header{break-inside:avoid}
+  h2.section-title{break-after:avoid}
+  a{color:var(--ink);text-decoration:underline}
+}
+
+/* TAULA D'ÍNDEX */
+.toc{margin-top:10pt}
+.toc-item{display:flex;align-items:baseline;gap:8pt;padding:6pt 0;border-bottom:1px dotted var(--line);font-size:11pt}
+.toc-num{font-family:'Fraunces',serif;font-weight:700;color:var(--gold);min-width:30pt}
+.toc-title{flex:1;color:var(--ink-soft)}
+.toc-dots{flex:1;border-bottom:1px dotted var(--muted);height:0;margin:0 8pt 4pt}
+</style>
+</head><body>
+
+<!-- PORTADA -->
+<section class="cover">
+  <div class="cover-top">
+    <div class="cover-eyebrow">Unitat Didàctica · Programació d'Aula</div>
+    <h1 class="cover-title">${titol||'Unitat Didàctica'}</h1>
+    <div class="cover-subtitle">Guia del professorat</div>
+  </div>
+  <div>
+    <div class="cover-meta">
+      ${assignatura?`<div class="cover-meta-item"><div class="cover-meta-label">Àrea</div><div class="cover-meta-value">${assignatura}</div></div>`:''}
+      ${nivellText?`<div class="cover-meta-item"><div class="cover-meta-label">Nivell</div><div class="cover-meta-value">${nivellText}</div></div>`:''}
+      <div class="cover-meta-item"><div class="cover-meta-label">Sessions</div><div class="cover-meta-value">${sessList.length} sessions</div></div>
+    </div>
+    <div class="cover-footer">LOMLOE · Decret 107/2022 · Comunitat Valenciana · ${date}</div>
+  </div>
+</section>
+
+<!-- ÍNDEX I MARC GENERAL -->
+<section class="page">
+  <div class="page-header">
+    <h1 class="page-title">Marc general</h1>
+    <div class="page-tag">Programació</div>
+  </div>
+
+  ${justificacio ? `
+  <h2 class="section-title">Justificació</h2>
+  <div class="box box-gold">
+    <div class="box-text">${fmt(justificacio)}</div>
+  </div>` : ''}
+
+  ${sa && Object.values(sa).some(v=>v) ? `
+  <h2 class="section-title">Situació d'aprenentatge</h2>
+  ${sa.titolSA ? `<div class="box box-gold"><div class="box-label">Títol</div><div class="box-text" style="font-family:'Fraunces',serif;font-size:13pt;font-weight:600">${sa.titolSA}</div></div>` : ''}
+  <div class="sa-grid">
+    ${sa.narrativa?`<div class="sa-cell full"><div class="box"><div class="box-label">📖 Narrativa</div><div class="box-text">${fmt(sa.narrativa)}</div></div></div>`:''}
+    ${sa.repte?`<div class="sa-cell"><div class="box"><div class="box-label">❓ Repte</div><div class="box-text">${fmt(sa.repte)}</div></div></div>`:''}
+    ${sa.producte?`<div class="sa-cell"><div class="box"><div class="box-label">🏆 Producte final</div><div class="box-text">${fmt(sa.producte)}</div></div></div>`:''}
+    ${sa.connexio?`<div class="sa-cell"><div class="box"><div class="box-label">🌍 Connexió real</div><div class="box-text">${fmt(sa.connexio)}</div></div></div>`:''}
+    ${sa.arees?`<div class="sa-cell"><div class="box"><div class="box-label">📚 Àrees implicades</div><div class="box-text">${fmt(sa.arees)}</div></div></div>`:''}
+    ${sa.temporitzacio?`<div class="sa-cell full"><div class="box"><div class="box-label">🕐 Temporització</div><div class="box-text">${fmt(sa.temporitzacio)}</div></div></div>`:''}
+  </div>` : ''}
+
+  ${data.objectiusGenerals ? `<h2 class="section-title">Objectius</h2><div class="box"><div class="box-text">${fmt(data.objectiusGenerals)}</div></div>` : ''}
+  ${data.competenciesEspecifiques ? `<h2 class="section-title">Competències específiques</h2><div class="box"><div class="box-text">${fmt(data.competenciesEspecifiques)}</div></div>` : ''}
+  ${data.criterisAvaluacio ? `<h2 class="section-title">Criteris d'avaluació</h2><div class="box"><div class="box-text">${fmt(data.criterisAvaluacio)}</div></div>` : ''}
+  ${data.sabersBasics ? `<h2 class="section-title">Sabers bàsics</h2><div class="box"><div class="box-text">${fmt(data.sabersBasics)}</div></div>` : ''}
+  ${data.metodologia ? `<h2 class="section-title">Metodologia</h2><div class="box"><div class="box-text">${fmt(data.metodologia)}</div></div>` : ''}
+  ${data.avaluacio ? `<h2 class="section-title">Avaluació</h2><div class="box"><div class="box-text">${fmt(data.avaluacio)}</div></div>` : ''}
+  ${data.atencioDiversitat ? `<h2 class="section-title">Atenció a la diversitat</h2><div class="box"><div class="box-text">${fmt(data.atencioDiversitat)}</div></div>` : ''}
+  ${data.recursos ? `<h2 class="section-title">Recursos</h2><div class="box"><div class="box-text">${fmt(data.recursos)}</div></div>` : ''}
+  ${data.temporitzacio ? `<h2 class="section-title">Temporització</h2><div class="box"><div class="box-text">${fmt(data.temporitzacio)}</div></div>` : ''}
+
+  <h2 class="section-title">Índex de sessions</h2>
+  <div class="toc">
+    ${sessList.map((s,i)=>`<div class="toc-item"><span class="toc-num">${i+1}.</span><span class="toc-title">${s.nom||('Sessió '+(i+1))}</span></div>`).join('')}
+  </div>
+</section>
+
+<!-- SESSIONS -->
+${sessList.map((s,i)=>`
+<section class="page">
+  <div class="sess-header">
+    <div class="sess-num">${i+1}</div>
+    <div class="sess-head-text">
+      <div class="sess-eyebrow">Sessió ${i+1} de ${sessList.length}</div>
+      <h2 class="sess-title">${s.nom||('Sessió '+(i+1))}</h2>
+    </div>
+  </div>
+
+  ${s.objectiusOperatius ? `<h3 class="sub-title">Objectius operatius</h3><div class="box"><div class="box-text">${fmt(s.objectiusOperatius)}</div></div>` : ''}
+  ${s.temporitzacio ? `<h3 class="sub-title">Temporització</h3><div class="box"><div class="box-text">${fmt(s.temporitzacio)}</div></div>` : ''}
+  ${s.metodologia ? `<h3 class="sub-title">Metodologia</h3><div class="box"><div class="box-text">${fmt(s.metodologia)}</div></div>` : ''}
+  ${s.contingutProfessor ? `<h3 class="sub-title">Notes per al professorat</h3><div class="box box-gold"><div class="box-text">${fmt(s.contingutProfessor)}</div></div>` : ''}
+
+  <h3 class="sub-title">Desenvolupament / continguts per a l'alumnat</h3>
+  <div class="box"><div class="box-text">${cleanContent(s.contingutAlumne||s.contingut||'')}</div></div>
+
+  ${s.exercicis ? `<h3 class="sub-title">Exercicis i activitats</h3><div class="box"><div class="box-text">${fmt(s.exercicis)}</div></div>` : ''}
+  ${s.recursos ? `<h3 class="sub-title">Recursos de la sessió</h3><div class="box"><div class="box-text">${fmt(s.recursos)}</div></div>` : ''}
+  ${s.avaluacio ? `<h3 class="sub-title">Avaluació de la sessió</h3><div class="box"><div class="box-text">${fmt(s.avaluacio)}</div></div>` : ''}
+
+  <div class="footer">${titol||'Unitat Didàctica'} · Sessió ${i+1}</div>
+</section>`).join('')}
+
+</body></html>`;
+  }
+
   // ── GENERA HTML DE PRESENTACIÓ ───────────────────────────────────
   function generateHTML(data) {
     const { titol, assignatura, nivell, justificacio, sessions } = data;
@@ -947,12 +1185,31 @@ document.addEventListener('DOMContentLoaded',()=>{
       btnPDF.onclick = () => {
         const data = collectDataForTeacher();
         if (!data.sessions.length) { alert('Genera el contingut de les sessions primer.'); return; }
-        const html = generateTeacherHTML(data);
-        const win = window.open('', '_blank');
-        win.document.write(html);
-        win.document.close();
-        // Esperem que carreguen les fonts i llavors obrim el diàleg d'impressió
-        setTimeout(() => { try { win.focus(); win.print(); } catch(e){} }, 800);
+        try {
+          const html = generateTeacherHTML(data);
+          // Descarreguem com a fitxer HTML (l'usuari pot obrir-lo i imprimir-lo com a PDF)
+          const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = (data.titol||'unitat').replace(/[^\w\s\-àáèéíòóúïüç]/gi,'').trim()+'_professor.html';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          // També intentem obrir-lo en una pestanya nova
+          setTimeout(() => {
+            const win = window.open('', '_blank');
+            if (win) {
+              win.document.write(html);
+              win.document.close();
+              setTimeout(() => { try { win.focus(); win.print(); } catch(e){} }, 1000);
+            }
+          }, 200);
+        } catch(e) {
+          alert('Error generant el PDF: ' + e.message);
+          console.error(e);
+        }
       };
       container.appendChild(btnPDF);
     }
