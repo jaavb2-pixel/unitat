@@ -1366,6 +1366,78 @@ document.addEventListener('DOMContentLoaded',()=>{
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
+    // Reconstrueix els controls per a un vídeo existent (quan es recarrega una sessió)
+    const rebuildVideoControls = (wrap) => {
+      if (wrap._udVidControlsBuilt) return;
+      wrap._udVidControlsBuilt = true;
+      const vidBox = wrap.querySelector('.ud-vid-box');
+      if (!vidBox) return;
+
+      // Elimina controls antics
+      wrap.querySelectorAll('.ud-img-controls, .ud-vid-controls').forEach(c => c.remove());
+
+      const controls = document.createElement('div');
+      controls.className = 'ud-img-controls ud-vid-controls';
+      controls.contentEditable = 'false';
+      controls.innerHTML =
+        '<button class="ud-img-ctrl-btn" data-action="up">↑</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="down">↓</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="smaller">−</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="bigger">+</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="left">←</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="center">↕</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="right">→</button>' +
+        '<button class="ud-img-ctrl-btn ud-img-del" data-action="del">🗑</button>';
+      wrap.insertBefore(controls, wrap.firstChild);
+
+      controls.querySelectorAll('.ud-img-ctrl-btn').forEach(btn => {
+        btn.addEventListener('mousedown', ev => {
+          ev.preventDefault(); ev.stopPropagation();
+          const action = btn.dataset.action;
+          const curSz = parseFloat(vidBox.style.width) || 40;
+          if (action === 'del') {
+            let t = wrap;
+            while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+            const p = document.createElement('p'); p.innerHTML = '<br>';
+            if (t && t !== editor) { t.after(p); t.remove(); } else { wrap.remove(); }
+            setTimeout(syncToTextarea, 50); return;
+          }
+          if (action === 'smaller') vidBox.style.width = Math.max(15, curSz-10)+'%';
+          if (action === 'bigger')  vidBox.style.width = Math.min(100,curSz+10)+'%';
+          if (action === 'left') {
+            wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+            vidBox.style.cssText = 'display:block;width:'+curSz+'%;float:left;margin:0 18px 8px 0;cursor:pointer;';
+          }
+          if (action === 'right') {
+            wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+            vidBox.style.cssText = 'display:block;width:'+curSz+'%;float:right;margin:0 0 8px 18px;cursor:pointer;';
+          }
+          if (action === 'center') {
+            wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+            vidBox.style.cssText = 'display:inline-block;width:'+curSz+'%;float:none;cursor:pointer;';
+          }
+          if (action === 'up') {
+            let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
+            if (t && t.previousElementSibling) editor.insertBefore(t, t.previousElementSibling);
+          }
+          if (action === 'down') {
+            let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
+            if (t && t.nextElementSibling) editor.insertBefore(t.nextElementSibling, t);
+          }
+          setTimeout(syncToTextarea, 50);
+        });
+      });
+
+      // Re-afegeix el click per obrir YouTube (es perd al recarregar)
+      const thumbWrap = vidBox.querySelector('div[style*="padding-bottom"]') || vidBox.firstElementChild;
+      const vidId = wrap.getAttribute('data-ud-vid');
+      if (thumbWrap && vidId && !thumbWrap._udClickHandled) {
+        thumbWrap._udClickHandled = true;
+        thumbWrap.style.cursor = 'pointer';
+        thumbWrap.addEventListener('click', () => window.open('https://www.youtube.com/watch?v='+vidId, '_blank'));
+      }
+    };
+
     // Reconstrueix els controls per a una imatge existent (quan es recarrega una sessió)
     const rebuildImageControls = (wrap) => {
       if (wrap._udControlsBuilt) return;
@@ -1439,7 +1511,20 @@ document.addEventListener('DOMContentLoaded',()=>{
         }
       });
       // Reconstruïm els controls per a TOTES les imatges de l'editor
-      editor.querySelectorAll('.ud-img-wrap-outer').forEach(wrap => rebuildImageControls(wrap));
+      editor.querySelectorAll('.ud-img-wrap-outer').forEach(wrap => {
+        if (wrap.hasAttribute('data-ud-vid')) {
+          rebuildVideoControls(wrap);
+        } else {
+          rebuildImageControls(wrap);
+        }
+      });
+      // També per als vídeos que no tenen la classe ud-img-wrap-outer
+      editor.querySelectorAll('[data-ud-vid]').forEach(wrap => {
+        if (!wrap.classList.contains('ud-img-wrap-outer')) {
+          wrap.classList.add('ud-img-wrap-outer');
+        }
+        rebuildVideoControls(wrap);
+      });
       // També per a imatges soltes que no tenen wrap (de sessions antigues)
       editor.querySelectorAll('img').forEach(img => {
         if (img.closest('.ud-img-wrap-outer')) return;
