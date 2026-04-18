@@ -1366,6 +1366,69 @@ document.addEventListener('DOMContentLoaded',()=>{
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
+    // Reconstrueix els controls per a una imatge existent (quan es recarrega una sessió)
+    const rebuildImageControls = (wrap) => {
+      if (wrap._udControlsBuilt) return;
+      wrap._udControlsBuilt = true;
+      const img = wrap.querySelector('img');
+      if (!img) return;
+
+      // Elimina controls antics si existeixen
+      wrap.querySelectorAll('.ud-img-controls').forEach(c => c.remove());
+
+      const controls = document.createElement('div');
+      controls.className = 'ud-img-controls';
+      controls.contentEditable = 'false';
+      controls.innerHTML =
+        '<button class="ud-img-ctrl-btn" data-action="up">↑</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="down">↓</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="smaller">−</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="bigger">+</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="left">←</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="center">↕</button>' +
+        '<button class="ud-img-ctrl-btn" data-action="right">→</button>' +
+        '<button class="ud-img-ctrl-btn ud-img-del" data-action="del">🗑</button>';
+      wrap.insertBefore(controls, wrap.firstChild);
+
+      controls.querySelectorAll('.ud-img-ctrl-btn').forEach(btn => {
+        btn.addEventListener('mousedown', ev => {
+          ev.preventDefault(); ev.stopPropagation();
+          const action = btn.dataset.action;
+          const curSz = parseFloat(img.style.maxWidth || img.style.width || '50') || 50;
+          if (action === 'del') {
+            let t = wrap;
+            while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+            const p = document.createElement('p'); p.innerHTML = '<br>';
+            if (t && t !== editor) { t.after(p); t.remove(); } else { wrap.remove(); }
+            setTimeout(syncToTextarea, 50); return;
+          }
+          if (action === 'smaller') { const ns = Math.max(10, curSz-10)+'%'; img.style.maxWidth=ns; img.style.width=ns; }
+          if (action === 'bigger')  { const ns = Math.min(100,curSz+10)+'%'; img.style.maxWidth=ns; img.style.width=ns; }
+          if (action === 'left') {
+            wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+            img.style.cssText = 'width:'+curSz+'%;float:left;margin:0 18px 8px 0;border-radius:8px;border:1px solid #e4e8f0;';
+          }
+          if (action === 'right') {
+            wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+            img.style.cssText = 'width:'+curSz+'%;float:right;margin:0 0 8px 18px;border-radius:8px;border:1px solid #e4e8f0;';
+          }
+          if (action === 'center') {
+            wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+            img.style.cssText = 'max-width:'+curSz+'%;display:inline-block;float:none;border-radius:8px;border:1px solid #e4e8f0;';
+          }
+          if (action === 'up') {
+            let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
+            if (t && t.previousElementSibling) editor.insertBefore(t, t.previousElementSibling);
+          }
+          if (action === 'down') {
+            let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
+            if (t && t.nextElementSibling) editor.insertBefore(t.nextElementSibling, t);
+          }
+          setTimeout(syncToTextarea, 50);
+        });
+      });
+    };
+
     // Restaura imatges reals: substitueix GIF transparent pel base64 real del magatzem
     const restoreImages = () => {
       editor.querySelectorAll('img[data-udid]').forEach(img => {
@@ -1374,6 +1437,28 @@ document.addEventListener('DOMContentLoaded',()=>{
         if (real && img.src.includes('R0lGODlh')) {
           img.src = real;
         }
+      });
+      // Reconstruïm els controls per a TOTES les imatges de l'editor
+      editor.querySelectorAll('.ud-img-wrap-outer').forEach(wrap => rebuildImageControls(wrap));
+      // També per a imatges soltes que no tenen wrap (de sessions antigues)
+      editor.querySelectorAll('img').forEach(img => {
+        if (img.closest('.ud-img-wrap-outer')) return;
+        if (img.closest('[data-ud-vid]')) return; // els vídeos no
+        if (img.src.includes('R0lGODlh')) return; // GIF transparent sense magatzem
+        // Embolcalla la imatge en un wrap amb controls
+        const wrap = document.createElement('div');
+        wrap.setAttribute('data-ud-img', '1');
+        wrap.className = 'ud-img-wrap-outer';
+        wrap.contentEditable = 'false';
+        const float = img.style.float;
+        if (float === 'left' || float === 'right') {
+          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+        } else {
+          wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+        }
+        img.parentElement.insertBefore(wrap, img);
+        wrap.appendChild(img);
+        rebuildImageControls(wrap);
       });
     };
 
