@@ -514,90 +514,218 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
     return `<!DOCTYPE html>
 <html lang="ca"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${titol||'Unitat Didàctica'}</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800;9..144,900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Source Sans 3',sans-serif;background:#f5f4f0;color:#1e1e1e;font-size:16px;line-height:1.7}
-.cover{background:#1a2744;color:white;padding:40px 48px 36px;position:relative;overflow:hidden}
-.cover::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;border-radius:50%;background:rgba(200,150,12,.12)}
-.cover-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:12px}
-.cover-title{font-family:'Playfair Display',serif;font-size:clamp(24px,5vw,48px);font-weight:900;line-height:1.15;margin-bottom:16px;max-width:700px}
-.cover-line{width:50px;height:4px;background:#c8960c;margin-bottom:16px}
-.cover-pills{display:flex;gap:10px;flex-wrap:wrap}
-.cover-pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:100px;padding:4px 14px;font-size:12px;font-weight:500}
-.cover-date{color:rgba(255,255,255,.3);font-size:11px;margin-top:14px}
-.just{background:white;border-left:5px solid #c8960c;margin:24px 40px;padding:16px 20px;border-radius:0 8px 8px 0;font-size:15px;color:#555;font-style:italic}
-.main-wrap{max-width:900px;margin:0 auto;padding:24px 32px}
-.tab-nav{display:flex;flex-wrap:wrap;border-bottom:2px solid #e0ddd6;margin-bottom:0;background:white;border-radius:12px 12px 0 0;overflow:hidden;border:1px solid #e0ddd6;border-bottom:none}
-.tab-body{background:white;border:1px solid #e0ddd6;border-top:none;border-radius:0 0 12px 12px;overflow:hidden;margin-bottom:24px}
-.sess-body{padding:28px 32px}
-.sess-text{font-size:15px;line-height:1.85;color:#2c2c2c}
-.sess-text p{margin-bottom:13px}
+:root{--ink:#0d1526;--ink-soft:#2c3548;--muted:#6b7280;--line:#e5e1d6;--bg:#faf7f0;--gold:#b8860b;--gold-soft:#fef6dc}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
+
+/* ─── PORTADA ────────────────────────────────── */
+.cover{position:relative;padding:72px 56px 56px;background:linear-gradient(135deg,#0d1526 0%,#1a2744 100%);color:white;overflow:hidden}
+.cover::before{content:'';position:absolute;top:-80px;right:-80px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(184,134,11,.25),transparent 65%)}
+.cover::after{content:'';position:absolute;bottom:-100px;left:-100px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.06),transparent 65%)}
+.cover-inner{position:relative;z-index:2;max-width:760px}
+.cover-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:22px;font-weight:500}
+.cover-eyebrow::before{content:'';width:28px;height:1px;background:var(--gold)}
+.cover-title{font-family:'Fraunces',serif;font-size:clamp(32px,5.5vw,54px);font-weight:800;line-height:1.08;letter-spacing:-.02em;margin-bottom:24px}
+.cover-meta{display:flex;gap:24px;flex-wrap:wrap;padding-top:22px;border-top:1px solid rgba(255,255,255,.12)}
+.cover-meta-item{display:flex;flex-direction:column;gap:3px}
+.cover-meta-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.4);font-weight:600}
+.cover-meta-value{font-size:15px;color:white;font-weight:500}
+
+/* ─── CONTENIDOR PRINCIPAL ───────────────────── */
+.main-wrap{max-width:880px;margin:0 auto;padding:48px 40px 64px}
+
+/* ─── JUSTIFICACIÓ ───────────────────────────── */
+.just{background:white;padding:28px 32px;border-radius:14px;border:1px solid var(--line);margin-bottom:32px;position:relative}
+.just-label{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:10px;display:block}
+.just-text{font-size:16px;line-height:1.75;color:var(--ink-soft);font-family:'Fraunces',serif;font-weight:500}
+
+/* ─── SITUACIÓ D'APRENENTATGE ────────────────── */
+.sa{background:white;border-radius:14px;overflow:hidden;margin-bottom:32px;border:1px solid var(--line);box-shadow:0 1px 2px rgba(0,0,0,.02)}
+.sa-top{padding:26px 32px;background:linear-gradient(to right,var(--gold-soft),#fefcf4);border-bottom:1px solid #f0e9d3}
+.sa-eyebrow{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:6px}
+.sa-title{font-family:'Fraunces',serif;font-size:24px;font-weight:700;color:var(--ink);line-height:1.25;letter-spacing:-.01em}
+.sa-grid{display:grid;grid-template-columns:1fr 1fr}
+.sa-cell{padding:22px 28px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+.sa-cell:nth-child(even){border-right:none}
+.sa-cell:nth-last-child(-n+2){border-bottom:none}
+.sa-full{grid-column:1/-1;border-right:none}
+.sa-cell-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--gold);margin-bottom:10px}
+.sa-cell-text{font-size:14px;color:var(--ink-soft);line-height:1.65}
+
+/* ─── NAVEGACIÓ DE SESSIONS ───────────────────── */
+.sess-index{margin-bottom:28px}
+.sess-index-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:14px;padding-left:2px}
+.tab-nav{display:flex;flex-wrap:wrap;gap:6px;background:white;border:1px solid var(--line);border-radius:12px;padding:6px}
+.tab-btn{flex:1;min-width:120px;padding:11px 16px;border:none;background:transparent;color:var(--ink-soft);cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;border-radius:8px;transition:all .18s;text-align:center}
+.tab-btn:hover{background:#f5f2ea}
+.tab-btn.act{color:white;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+
+/* ─── CONTINGUT DE SESSIÓ ─────────────────────── */
+.tab-panel{background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:40px}
+.sess-head{padding:26px 34px 22px;border-bottom:1px solid var(--line);background:#fcfaf4;display:flex;align-items:center;gap:18px}
+.sess-num{min-width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-family:'Fraunces',serif;font-size:20px;font-weight:800;flex-shrink:0}
+.sess-head-text{flex:1}
+.sess-eyebrow{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:4px}
+.sess-title{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--ink);line-height:1.25;letter-spacing:-.01em}
+.sess-body{padding:32px 40px 36px}
+
+/* ─── TEXT DE LA SESSIÓ ───────────────────────── */
+.sess-text{font-size:16px;line-height:1.82;color:var(--ink-soft)}
+.sess-text p{margin-bottom:15px}
 .sess-text p:last-child{margin-bottom:0}
 .sess-text::after{content:'';display:table;clear:both}
-.sess-text img{border-radius:8px;border:1px solid #e4e8f0;max-width:100%}
-.sess-text img[style*="float:left"]{float:left;margin:0 18px 12px 0}
-.sess-text img[style*="float:right"]{float:right;margin:0 0 12px 18px}
-.sess-text strong{font-weight:700}
+.sess-text strong{font-weight:700;color:var(--ink)}
 .sess-text em{font-style:italic}
-.sess-text u{text-decoration:underline}
-.sess-text a{color:#1a2744;font-weight:600;text-decoration:underline}
-.sess-text div[style*="float"]{overflow:visible!important}
-.ud-video-wrap{margin:16px 0;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0;clear:both}
-.ud-video-wrap iframe{width:100%;height:260px;border:none;display:block}
-.ud-video-caption{background:#1a2744;color:white;font-size:12px;padding:6px 12px;text-align:center}
-.yt-card{margin:16px 0;clear:both}
-.yt-link{display:block;text-decoration:none;border-radius:10px;overflow:hidden;border:1px solid #e4e8f0;transition:box-shadow .2s}
-.yt-link:hover{box-shadow:0 4px 16px rgba(0,0,0,.15)}
-.yt-thumb-wrap{position:relative;background:#000;overflow:hidden;max-height:280px}
-.yt-thumb{width:100%;display:block;opacity:.92}
-.yt-link:hover .yt-thumb{opacity:1}
-.yt-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);transition:transform .2s}
-.yt-link:hover .yt-play{transform:translate(-50%,-50%) scale(1.1)}
-.yt-caption{background:#1a2744;color:white;font-size:13px;font-weight:500;padding:8px 14px;text-align:center}
-.ex-row{display:flex;gap:12px;margin-bottom:10px;align-items:flex-start}
-.ex-n{min-width:26px;height:26px;border-radius:50%;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px}
-.ex-t{font-size:14px;color:#2c2c2c;line-height:1.6;flex:1}
-.sa-section{background:white;border-radius:12px;border-left:6px solid #c8960c;overflow:hidden;margin-bottom:24px;border:1px solid #e0ddd6;border-left-width:6px}
-.sa-header{display:flex;align-items:flex-start;gap:14px;padding:20px 24px 14px;border-bottom:1px solid #f0ede4;background:#fef9eb}
-.sa-icon{font-size:28px;flex-shrink:0}
-.sa-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#7a5c00;margin-bottom:5px}
-.sa-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#1a2744}
-.sa-grid{display:grid;grid-template-columns:1fr 1fr}
-.sa-item{padding:14px 20px;border-bottom:1px solid #f0ede4;border-right:1px solid #f0ede4}
-.sa-item:nth-child(even){border-right:none}
-.sa-full{grid-column:1/-1;border-right:none}
-.sa-item-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#7a5c00;margin-bottom:6px}
-.sa-item p{font-size:13px;color:#2c2c2c;line-height:1.6}
-.footer{text-align:center;padding:20px;font-size:11px;color:#bbb;border-top:1px solid #e8e6e0}
-@media(max-width:600px){.cover{padding:28px 20px 24px}.main-wrap{padding:16px}.tab-nav button{font-size:12px;padding:8px 12px}.sa-grid{grid-template-columns:1fr}.sa-item{border-right:none}}
-@media print{body{background:white}.tab-panel{display:block!important}.tab-nav{display:none}}
+.sess-text u{text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:2px}
+.sess-text a{color:var(--ink);font-weight:600;border-bottom:1.5px solid var(--gold);text-decoration:none;transition:color .15s}
+.sess-text a:hover{color:var(--gold)}
+
+/* ─── IMATGES ────────────────────────────────── */
+.sess-text img{border-radius:10px;border:1px solid var(--line);max-width:100%;height:auto}
+.sess-text div[style*="float:left"],.sess-text div[style*="float:right"]{overflow:visible!important}
+.sess-text img[style*="float:left"]{float:left;margin:4px 24px 12px 0!important}
+.sess-text img[style*="float:right"]{float:right;margin:4px 0 12px 24px!important}
+
+/* ─── VÍDEO YOUTUBE ───────────────────────────── */
+.yt-card{margin:24px 0;clear:both}
+a[style*="width"] .yt-thumb-wrap,.yt-thumb-wrap{position:relative;overflow:hidden;border-radius:10px;border:1px solid var(--line);background:#000;transition:transform .25s,box-shadow .25s}
+.yt-thumb-wrap:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.18)}
+.yt-caption{background:linear-gradient(to right,var(--ink),#1a2744);color:white;font-size:13px;font-weight:500;padding:10px 16px;text-align:center;border-radius:0 0 10px 10px;margin-top:-1px}
+
+/* ─── EXERCICIS ──────────────────────────────── */
+.exer-box{margin-top:32px;padding:26px 30px;border-radius:12px;position:relative}
+.exer-hdr{display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:1.5px solid}
+.exer-hdr-icon{font-size:18px}
+.exer-hdr-text{font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:1.5px}
+.ex-row{display:flex;gap:16px;margin-bottom:14px;align-items:flex-start}
+.ex-row:last-child{margin-bottom:0}
+.ex-n{min-width:30px;height:30px;border-radius:8px;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;margin-top:1px;font-family:'Fraunces',serif}
+.ex-t{font-size:15px;color:var(--ink-soft);line-height:1.65;flex:1;padding-top:4px}
+
+/* ─── PEU ────────────────────────────────────── */
+.footer{text-align:center;padding:32px 20px;font-size:11px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase;border-top:1px solid var(--line);margin-top:20px}
+.footer strong{display:block;font-size:13px;color:var(--ink);margin-bottom:4px;letter-spacing:0;text-transform:none;font-family:'Fraunces',serif;font-weight:700}
+
+/* ─── RESPONSIVE ─────────────────────────────── */
+@media(max-width:700px){
+  .cover{padding:44px 24px 36px}
+  .main-wrap{padding:28px 18px 40px}
+  .sess-body{padding:22px 22px 26px}
+  .sess-head{padding:20px 22px 18px}
+  .sa-grid{grid-template-columns:1fr}
+  .sa-cell{border-right:none!important}
+  .tab-btn{min-width:auto;font-size:12px;padding:9px 10px}
+  .cover-meta{gap:16px}
+  .just{padding:20px 22px}
+  .sa-top{padding:22px 24px}
+  .sa-cell{padding:18px 22px}
+}
+
+/* ─── PRINT / PDF ────────────────────────────── */
+@media print{
+  @page{size:A4;margin:16mm 14mm}
+  body{background:white;font-size:12pt;line-height:1.6}
+  .cover{padding:40px;page-break-after:always;min-height:240mm}
+  .cover-title{font-size:36pt}
+  .main-wrap{padding:0;max-width:100%}
+  .tab-nav,.sess-index{display:none}
+  .tab-panel{display:block!important;page-break-after:always;border:none;margin:0 0 20mm;border-radius:0;box-shadow:none}
+  .tab-panel:last-child{page-break-after:auto}
+  .sess-head{background:white;border-bottom:2px solid var(--ink);padding:0 0 14px}
+  .sess-body{padding:18px 0 0}
+  .sa{page-break-inside:avoid;border:1.5px solid var(--line)}
+  .exer-box{page-break-inside:avoid;border:1px solid var(--line)}
+  .footer{display:none}
+  a{color:var(--ink)!important;border-bottom:1px solid var(--gold)!important}
+  .yt-thumb-wrap{box-shadow:none!important;transform:none!important}
+}
 </style></head><body>
-<div class="cover">
-  <div class="cover-label">${[assignatura,nivellText].filter(Boolean).join(' · ')}</div>
-  <h1 class="cover-title">${titol||'Unitat Didàctica'}</h1>
-  <div class="cover-line"></div>
-  <div class="cover-pills">
-    <span class="cover-pill">${sessions.length} sessions</span>
+
+<section class="cover">
+  <div class="cover-inner">
+    <div class="cover-eyebrow">Unitat Didàctica · LOMLOE</div>
+    <h1 class="cover-title">${titol||'Unitat Didàctica'}</h1>
+    <div class="cover-meta">
+      ${assignatura?`<div class="cover-meta-item"><span class="cover-meta-label">Àrea</span><span class="cover-meta-value">${assignatura}</span></div>`:''}
+      ${nivellText?`<div class="cover-meta-item"><span class="cover-meta-label">Nivell</span><span class="cover-meta-value">${nivellText}</span></div>`:''}
+      <div class="cover-meta-item"><span class="cover-meta-label">Sessions</span><span class="cover-meta-value">${sessions.length} sessions</span></div>
+    </div>
   </div>
-</div>
-<div class="main-wrap">
-${saHTML}
-${justificacio?`<div class="just">${justificacio}</div>`:''}
-<div class="tab-nav">${tabBtns}</div>
-<div class="tab-body">${tabPanels}</div>
-<div class="footer">${titol||'Unitat Didàctica'} · ${[assignatura,nivellText].filter(Boolean).join(' · ')}</div>
-</div>
+</section>
+
+<main class="main-wrap">
+  ${justificacio ? `<div class="just"><span class="just-label">Introducció</span><div class="just-text">${justificacio}</div></div>` : ''}
+
+  ${data.sa && Object.values(data.sa).some(v=>v) ? `
+  <section class="sa">
+    <div class="sa-top">
+      <div class="sa-eyebrow">Situació d'Aprenentatge</div>
+      <h2 class="sa-title">${data.sa.titolSA||''}</h2>
+    </div>
+    <div class="sa-grid">
+      ${data.sa.narrativa?`<div class="sa-cell sa-full"><div class="sa-cell-label">Narrativa</div><div class="sa-cell-text">${data.sa.narrativa}</div></div>`:''}
+      ${data.sa.repte?`<div class="sa-cell"><div class="sa-cell-label">Repte</div><div class="sa-cell-text">${data.sa.repte}</div></div>`:''}
+      ${data.sa.producte?`<div class="sa-cell"><div class="sa-cell-label">Producte final</div><div class="sa-cell-text">${data.sa.producte}</div></div>`:''}
+      ${data.sa.connexio?`<div class="sa-cell"><div class="sa-cell-label">Connexió real</div><div class="sa-cell-text">${data.sa.connexio}</div></div>`:''}
+      ${data.sa.arees?`<div class="sa-cell"><div class="sa-cell-label">Àrees implicades</div><div class="sa-cell-text">${data.sa.arees}</div></div>`:''}
+      ${data.sa.temporitzacio?`<div class="sa-cell"><div class="sa-cell-label">Temporització</div><div class="sa-cell-text">${data.sa.temporitzacio}</div></div>`:''}
+    </div>
+  </section>` : ''}
+
+  <div class="sess-index">
+    <div class="sess-index-label">Sessions de la unitat</div>
+    <div class="tab-nav">
+      ${sessions.map((s,i)=>`<button class="tab-btn${i===0?' act':''}" onclick="showTab(${i})" data-idx="${i}">${s.nom}</button>`).join('')}
+    </div>
+  </div>
+
+  ${sessions.map((s,i)=>{
+    const color = COLORS[i % COLORS.length];
+    const lightBg = color + '10';
+    const cHTML = cleanHTML(s.contingut);
+    const exHTML = s.exercicis
+      ? s.exercicis.split('\n').filter(e=>e.trim()).map((e,ei)=>
+          `<div class="ex-row"><div class="ex-n" style="background:${color}">${ei+1}</div><div class="ex-t">${e.replace(/^\d+[\.\)]\s*/,'')}</div></div>`
+        ).join('') : '';
+    return `<section class="tab-panel" id="tab-${i}" style="display:${i===0?'block':'none'}">
+      <div class="sess-head">
+        <div class="sess-num" style="background:${color}">${i+1}</div>
+        <div class="sess-head-text">
+          <div class="sess-eyebrow">Sessió ${i+1} de ${sessions.length}</div>
+          <h3 class="sess-title">${s.nom}</h3>
+        </div>
+      </div>
+      <div class="sess-body">
+        <div class="sess-text">${cHTML}</div>
+        ${exHTML?`<div class="exer-box" style="background:${lightBg};border:1px solid ${color}33"><div class="exer-hdr" style="border-color:${color}44;color:${color}"><span class="exer-hdr-icon">✏️</span><span class="exer-hdr-text">Exercicis i activitats</span></div>${exHTML}</div>`:''}
+      </div>
+    </section>`;
+  }).join('')}
+
+  <footer class="footer">
+    <strong>${titol||'Unitat Didàctica'}</strong>
+    ${[assignatura,nivellText].filter(Boolean).join(' · ')}
+  </footer>
+</main>
+
 <script>
+const _colors=${JSON.stringify(COLORS)};
 function showTab(n){
   document.querySelectorAll('.tab-panel').forEach((p,i)=>p.style.display=i===n?'block':'none');
   document.querySelectorAll('.tab-btn').forEach((b,i)=>{
-    const colors=${JSON.stringify(COLORS)};
-    b.style.background=i===n?colors[i%colors.length]:'transparent';
-    b.style.color=i===n?'white':'#555';
-    b.style.borderBottom='3px solid '+(i===n?colors[i%colors.length]:'transparent');
+    if(i===n){ b.classList.add('act'); b.style.background=_colors[i%_colors.length]; }
+    else { b.classList.remove('act'); b.style.background='transparent'; }
   });
+  window.scrollTo({top:document.querySelector('.tab-panel').offsetTop-20,behavior:'smooth'});
 }
+// Inicialitza el color del primer botó
+document.addEventListener('DOMContentLoaded',()=>{
+  const first=document.querySelector('.tab-btn.act');
+  if(first) first.style.background=_colors[0];
+});
 <\/script>
 </body></html>`;
   }
