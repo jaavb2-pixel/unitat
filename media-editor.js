@@ -525,7 +525,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
 .cover{position:relative;padding:72px 56px 56px;background:linear-gradient(135deg,#0d1526 0%,#1a2744 100%);color:white;overflow:hidden}
 .cover::before{content:'';position:absolute;top:-80px;right:-80px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(184,134,11,.25),transparent 65%)}
 .cover::after{content:'';position:absolute;bottom:-100px;left:-100px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.06),transparent 65%)}
-.cover-inner{position:relative;z-index:2;max-width:760px}
+.cover-inner{position:relative;z-index:2;max-width:1100px;margin:0 auto}
 .cover-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:22px;font-weight:500}
 .cover-eyebrow::before{content:'';width:28px;height:1px;background:var(--gold)}
 .cover-title{font-family:'Fraunces',serif;font-size:clamp(32px,5.5vw,54px);font-weight:800;line-height:1.08;letter-spacing:-.02em;margin-bottom:24px}
@@ -535,7 +535,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
 .cover-meta-value{font-size:15px;color:white;font-weight:500}
 
 /* ─── CONTENIDOR PRINCIPAL ───────────────────── */
-.main-wrap{max-width:880px;margin:0 auto;padding:48px 40px 64px}
+.main-wrap{max-width:1200px;margin:0 auto;padding:48px 48px 64px}
 
 /* ─── JUSTIFICACIÓ ───────────────────────────── */
 .just{background:white;padding:28px 32px;border-radius:14px;border:1px solid var(--line);margin-bottom:32px;position:relative}
