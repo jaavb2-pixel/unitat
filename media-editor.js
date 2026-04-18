@@ -1484,24 +1484,51 @@ document.addEventListener('DOMContentLoaded',()=>{
     return wrap;
   }
 
+  // Comprimeix imatges grans per no saturar el localStorage
+  function compressImageSrc(src, maxWidth = 1200, quality = 0.82) {
+    return new Promise(resolve => {
+      // Només comprimim base64 (no URLs externes)
+      if (!src.startsWith('data:image')) { resolve(src); return; }
+      const img = new Image();
+      img.onload = () => {
+        const ratio = Math.min(1, maxWidth / img.width);
+        const w = Math.round(img.width * ratio);
+        const h = Math.round(img.height * ratio);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'white'; ctx.fillRect(0, 0, w, h); // fons blanc per PNG transparents
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        // Només usem la versió comprimida si realment és més petita
+        resolve(compressed.length < src.length ? compressed : src);
+      };
+      img.onerror = () => resolve(src);
+      img.src = src;
+    });
+  }
+
   function insertImageFromSrc(editor, src, name, syncFn) {
-    const wrap = makeImgWrap(src, name, syncFn, editor);
-    editor.focus();
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-      range.insertNode(wrap);
-      const p = document.createElement('p'); p.innerHTML = '<br>';
-      wrap.after(p);
-      range.setStartAfter(p); range.collapse(true);
-      sel.removeAllRanges(); sel.addRange(range);
-    } else {
-      editor.appendChild(wrap);
-      const p = document.createElement('p'); p.innerHTML = '<br>';
-      editor.appendChild(p);
-    }
-    setTimeout(syncFn, 50);
+    // Comprimim abans d'inserir
+    compressImageSrc(src).then(compressed => {
+      const wrap = makeImgWrap(compressed, name, syncFn, editor);
+      editor.focus();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(wrap);
+        const p = document.createElement('p'); p.innerHTML = '<br>';
+        wrap.after(p);
+        range.setStartAfter(p); range.collapse(true);
+        sel.removeAllRanges(); sel.addRange(range);
+      } else {
+        editor.appendChild(wrap);
+        const p = document.createElement('p'); p.innerHTML = '<br>';
+        editor.appendChild(p);
+      }
+      setTimeout(syncFn, 50);
+    });
   }
 
   function makeVidWrap(id, cap, syncFn, editor) {
@@ -2309,24 +2336,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     fixSavedSessions();
 
     const processTextareas = () => {
-      document.querySelectorAll('textarea').forEach(ta => {
-        // Si el textarea està visible però no té editor, és un textarea nou
-        // (React l'ha re-renderitzat després de desar)
-        if (ta.dataset.udDone && ta.style.display !== 'none') {
-          // React ha recreat el textarea: netegem l'editor orfe del costat
-          const prevEditor = ta.previousElementSibling;
-          const prevToolbar = prevEditor?.previousElementSibling;
-          if (prevEditor && prevEditor.classList.contains('ud-editor')) {
-            prevEditor.remove();
-            if (prevToolbar && prevToolbar.classList.contains('ud-toolbar')) prevToolbar.remove();
-          }
-          // Forcem la re-conversió
-          delete ta.dataset.udDone;
-        }
-        if (ta.dataset.udDone) return;
-        if (parseInt(ta.getAttribute('rows') || 0) >= 7) convertToEditor(ta);
-      });
-      // Netegem editors orfes (sense textarea germà)
+      // Primer: netegem editors orfes (sense textarea germà)
       document.querySelectorAll('.ud-editor').forEach(ed => {
         const ta = ed.nextElementSibling;
         if (!ta || ta.tagName !== 'TEXTAREA') {
@@ -2335,13 +2345,69 @@ document.addEventListener('DOMContentLoaded',()=>{
           ed.remove();
         }
       });
+      // Després: processem textareas
+      document.querySelectorAll('textarea').forEach(ta => {
+        // Cas 1: textarea nou (sense udDone)
+        if (!ta.dataset.udDone) {
+          if (parseInt(ta.getAttribute('rows') || 0) >= 7) convertToEditor(ta);
+          return;
+        }
+        // Cas 2: textarea amb udDone però visible (React l'ha recreat)
+        if (ta.style.display !== 'none') {
+          // Netegem editor i toolbar previs si estan orfes
+          const prev = ta.previousElementSibling;
+          if (prev && prev.classList.contains('ud-editor')) {
+            const tb = prev.previousElementSibling;
+            prev.remove();
+            if (tb && tb.classList.contains('ud-toolbar')) tb.remove();
+          }
+          delete ta.dataset.udDone;
+          if (parseInt(ta.getAttribute('rows') || 0) >= 7) convertToEditor(ta);
+          return;
+        }
+        // Cas 3: textarea ocult amb udDone però sense editor germà (editor perdut)
+        const prev = ta.previousElementSibling;
+        if (!prev || !prev.classList.contains('ud-editor')) {
+          delete ta.dataset.udDone;
+          if (parseInt(ta.getAttribute('rows') || 0) >= 7) convertToEditor(ta);
+        }
+      });
       setupHeader();
       injectSASection();
     };
 
     new MutationObserver(processTextareas).observe(document.body, { childList: true, subtree: true });
 
+    // També polling cada 500ms per capturar casos on el MutationObserver no es dispara
+    setInterval(processTextareas, 500);
+
     [500,1000,2000,3000].forEach(t => setTimeout(() => { setupHeader(); injectSASection(); }, t));
+
+    // Netegem magatzem d'imatges orfes (IDs que no estan en cap unitat guardada)
+    cleanOrphanImages();
+    // Neteja automàtica cada 2 minuts
+    setInterval(cleanOrphanImages, 120000);
+  }
+
+  // Elimina imatges del magatzem que ja no s'usen en cap unitat
+  function cleanOrphanImages() {
+    try {
+      const store = JSON.parse(localStorage.getItem('_udImgStore') || '{}');
+      const units = JSON.parse(localStorage.getItem('ud_units') || '[]');
+      if (!Array.isArray(units)) return;
+      const allContent = JSON.stringify(units);
+      let removed = 0;
+      Object.keys(store).forEach(id => {
+        if (!allContent.includes(id)) {
+          delete store[id];
+          removed++;
+        }
+      });
+      if (removed > 0) {
+        localStorage.setItem('_udImgStore', JSON.stringify(store));
+        window._udImgStore = store;
+      }
+    } catch(e){}
   }
 
   // Elimina duplicats del localStorage, mantenint només l'entrada més recent per títol
