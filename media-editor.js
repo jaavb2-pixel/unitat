@@ -1189,24 +1189,33 @@ function showTab(n){
 
     // Sincronitza innerHTML (preserva links, imatges i vídeos)
     // Usem el setter natiu per forçar que React detecte el canvi
-    const nativeInputSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-
-    // Magatzem d'imatges base64 (no van al textarea per no bloquejar React)
-    if (!window._udImgStore) window._udImgStore = {};
+    // Magatzem d'imatges base64
+    if (!window._udImgStore) {
+      try { window._udImgStore = JSON.parse(localStorage.getItem('_udImgStore') || '{}'); }
+      catch(e) { window._udImgStore = {}; }
+    }
 
     const syncToTextarea = () => {
       const tmp = document.createElement('div');
       tmp.innerHTML = editor.innerHTML;
-      // Elimina controls visuals
       tmp.querySelectorAll('.ud-img-controls,.ud-vid-controls').forEach(el => el.remove());
-      // Substitueix base64 per ID curt per no bloquejar React
-      tmp.querySelectorAll('img[src^="data:"]').forEach(img => {
-        const existing = img.getAttribute('data-udid');
-        if (existing) return; // ja processat
-        const id = 'udimg_' + Math.random().toString(36).slice(2,8);
-        window._udImgStore[id] = img.src;
-        img.setAttribute('data-udid', id);
-        img.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'); // 1px transparent
+      // Al clon per a React: substituïm base64 per ID curt
+      tmp.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src') || '';
+        if (!src.startsWith('data:image/gif')) {
+          let id = img.getAttribute('data-udid');
+          if (!id || !window._udImgStore[id]) {
+            id = 'udimg_' + Math.random().toString(36).slice(2,8);
+            window._udImgStore[id] = src;
+            try { localStorage.setItem('_udImgStore', JSON.stringify(window._udImgStore)); } catch(e){}
+            img.setAttribute('data-udid', id);
+            // Actualitzem també l'element real de l'editor
+            editor.querySelectorAll(`img[src="${CSS.escape ? CSS.escape(src) : src}"]`).forEach(realImg => {
+              realImg.setAttribute('data-udid', id);
+            });
+          }
+          img.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+        }
       });
       const val = tmp.innerHTML;
       if (nativeInputSetter) nativeInputSetter.call(textarea, val);
@@ -1215,13 +1224,18 @@ function showTab(n){
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
-    // Restaura les imatges reals a l'editor des del magatzem
+    // Restaura imatges reals a l'editor (substitueix el GIF transparent per la base64 real)
     const restoreImages = () => {
       editor.querySelectorAll('img[data-udid]').forEach(img => {
         const id = img.getAttribute('data-udid');
-        if (window._udImgStore[id]) img.src = window._udImgStore[id];
+        const real = window._udImgStore[id];
+        if (real && img.src.includes('R0lGODlh')) {
+          img.src = real;
+        }
       });
     };
+    // Restaurem amb retards per cobrir quan React carrega la sessió
+    [100, 500, 1000, 2000].forEach(t => setTimeout(restoreImages, t));
     editor.addEventListener('input', syncToTextarea);
 
     // Enganxar imatges (Ctrl+V)
@@ -1249,7 +1263,7 @@ function showTab(n){
     });
 
     setInterval(() => {
-      if (isTyping) return; // no sobreescrivim mentre l'usuari escriu
+      if (isTyping) return;
       if (textarea.value !== lastVal) {
         lastVal = textarea.value;
         const hasImages = editor.querySelector('img, [data-ud-img], [data-ud-vid]');
@@ -1261,6 +1275,8 @@ function showTab(n){
             editor.innerHTML = v;
           }
         }
+        // Restaurem imatges per si React ha carregat una sessió guardada
+        setTimeout(restoreImages, 50);
       }
     }, 300);
 
