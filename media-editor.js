@@ -23,9 +23,15 @@
       }
       return searchFiber(fiber.child, depth+1) || (depth < 4 ? searchFiber(fiber.sibling, depth+1) : null);
     }
-    const key = Object.keys(root).find(k => k.startsWith('__reactFiber') || k.startsWith('_reactRootContainer'));
+    // Provem totes les variants de claus que React usa segons la versió
+    const key = Object.keys(root).find(k =>
+      k.startsWith('__reactFiber') ||
+      k.startsWith('__reactContainer') ||
+      k.startsWith('_reactRootContainer')
+    );
     if (!key) return null;
-    return searchFiber(root[key]?.current || root[key], 0);
+    const fiber = root[key]?.current || root[key]?._internalRoot?.current || root[key];
+    return searchFiber(fiber, 0);
   }
 
   function collectData() {
