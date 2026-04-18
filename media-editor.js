@@ -116,6 +116,37 @@
     };
   }
 
+  // ── PERSISTÈNCIA DE LA SA ────────────────────────────────────────
+  // La SA es guarda per unitat. Identifiquem la unitat pel títol actual.
+  function getCurrentUnitKey() {
+    const rs = getAppState();
+    const titol = rs?.titol || document.querySelector('input[type=text]')?.value || '';
+    return 'ud_sa_' + (titol.toLowerCase().trim().replace(/\s+/g,'_') || 'default');
+  }
+
+  function saveSAData() {
+    const data = getSAData();
+    // Si tots els camps estan buits, no guardem res
+    if (!Object.values(data).some(v => v)) return;
+    try { localStorage.setItem(getCurrentUnitKey(), JSON.stringify(data)); } catch(e){}
+  }
+
+  function loadSAData() {
+    try {
+      const raw = localStorage.getItem(getCurrentUnitKey());
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+      set('sa-titol', data.titolSA);
+      set('sa-narrativa', data.narrativa);
+      set('sa-repte', data.repte);
+      set('sa-producte', data.producte);
+      set('sa-connexio', data.connexio);
+      set('sa-arees', data.arees);
+      set('sa-temporitzacio', data.temporitzacio);
+    } catch(e){}
+  }
+
   // ── INJECTA LA SECCIÓ DE SA AL DOM ──────────────────────────────
   function injectSASection() {
     if (document.getElementById('ud-sa-section')) return;
@@ -175,6 +206,25 @@
 
     // Botó generar amb IA
     document.getElementById('sa-ia-btn').onclick = generateSAWithAI;
+
+    // Carreguem dades guardades de la SA
+    loadSAData();
+
+    // Auto-guarda cada vegada que canvia un camp de la SA
+    ['sa-titol','sa-narrativa','sa-repte','sa-producte','sa-connexio','sa-arees','sa-temporitzacio'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', saveSAData);
+        el.addEventListener('change', saveSAData);
+      }
+    });
+
+    // Quan canvia el títol de la unitat, recarreguem la SA associada
+    const titleInput = document.querySelector('input[type=text]');
+    if (titleInput && !titleInput._udSAWatched) {
+      titleInput._udSAWatched = true;
+      titleInput.addEventListener('change', () => setTimeout(loadSAData, 100));
+    }
   }
 
   // ── GENERA SA AMB IA ─────────────────────────────────────────────
@@ -233,6 +283,9 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       if (parsed.connexio)      { const el = document.getElementById('sa-connexio');      if(el) el.value = parsed.connexio; }
       if (parsed.arees)         { const el = document.getElementById('sa-arees');         if(el) el.value = parsed.arees; }
       if (parsed.temporitzacio) { const el = document.getElementById('sa-temporitzacio'); if(el) el.value = parsed.temporitzacio; }
+
+      // Guarda la SA al localStorage
+      saveSAData();
 
     } catch(e) {
       alert('Error generant la SA: ' + e.message);
