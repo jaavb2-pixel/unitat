@@ -1066,12 +1066,28 @@ document.addEventListener('DOMContentLoaded',()=>{
           img.style.cssText = 'max-width:'+curSz+'%;display:inline-block;float:none;border-radius:8px;border:1px solid #e4e8f0;';
         }
         if (action === 'up') {
-          let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
-          if (t && t.previousElementSibling) editor.insertBefore(t, t.previousElementSibling);
+          let t = wrap;
+          while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+          if (!t || t === editor) return;
+          let prev = t.previousElementSibling;
+          while (prev && !prev.textContent.trim() && !prev.querySelector('img,iframe,[data-ud-vid],[data-ud-img]')) {
+            prev = prev.previousElementSibling;
+          }
+          if (prev) t.parentElement.insertBefore(t, prev);
         }
         if (action === 'down') {
-          let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
-          if (t && t.nextElementSibling) editor.insertBefore(t.nextElementSibling, t);
+          let t = wrap;
+          while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+          if (!t || t === editor) return;
+          let next = t.nextElementSibling;
+          while (next && !next.textContent.trim() && !next.querySelector('img,iframe,[data-ud-vid],[data-ud-img]')) {
+            next = next.nextElementSibling;
+          }
+          if (next && next.nextElementSibling) {
+            t.parentElement.insertBefore(t, next.nextElementSibling);
+          } else if (next) {
+            t.parentElement.appendChild(t);
+          }
         }
         setTimeout(syncFn, 50);
       });
@@ -1186,12 +1202,28 @@ document.addEventListener('DOMContentLoaded',()=>{
           vidBox.style.cssText = `display:inline-block;width:${curSz}%;float:none;cursor:pointer;`;
         }
         if (action === 'up') {
-          let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
-          if (t && t.previousElementSibling) editor.insertBefore(t, t.previousElementSibling);
+          let t = wrap;
+          while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+          if (!t || t === editor) return;
+          let prev = t.previousElementSibling;
+          while (prev && !prev.textContent.trim() && !prev.querySelector('img,iframe,[data-ud-vid],[data-ud-img]')) {
+            prev = prev.previousElementSibling;
+          }
+          if (prev) t.parentElement.insertBefore(t, prev);
         }
         if (action === 'down') {
-          let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
-          if (t && t.nextElementSibling) editor.insertBefore(t.nextElementSibling, t);
+          let t = wrap;
+          while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+          if (!t || t === editor) return;
+          let next = t.nextElementSibling;
+          while (next && !next.textContent.trim() && !next.querySelector('img,iframe,[data-ud-vid],[data-ud-img]')) {
+            next = next.nextElementSibling;
+          }
+          if (next && next.nextElementSibling) {
+            t.parentElement.insertBefore(t, next.nextElementSibling);
+          } else if (next) {
+            t.parentElement.appendChild(t);
+          }
         }
         setTimeout(syncFn, 50);
       });
@@ -1417,12 +1449,29 @@ document.addEventListener('DOMContentLoaded',()=>{
             vidBox.style.cssText = 'display:inline-block;width:'+curSz+'%;float:none;cursor:pointer;';
           }
           if (action === 'up') {
-            let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
-            if (t && t.previousElementSibling) editor.insertBefore(t, t.previousElementSibling);
+            let t = wrap;
+            while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+            if (!t || t === editor) return;
+            // Busquem el germà anterior no buit
+            let prev = t.previousElementSibling;
+            while (prev && !prev.textContent.trim() && !prev.querySelector('img,iframe,[data-ud-vid],[data-ud-img]')) {
+              prev = prev.previousElementSibling;
+            }
+            if (prev) t.parentElement.insertBefore(t, prev);
           }
           if (action === 'down') {
-            let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
-            if (t && t.nextElementSibling) editor.insertBefore(t.nextElementSibling, t);
+            let t = wrap;
+            while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+            if (!t || t === editor) return;
+            let next = t.nextElementSibling;
+            while (next && !next.textContent.trim() && !next.querySelector('img,iframe,[data-ud-vid],[data-ud-img]')) {
+              next = next.nextElementSibling;
+            }
+            if (next && next.nextElementSibling) {
+              t.parentElement.insertBefore(t, next.nextElementSibling);
+            } else if (next) {
+              t.parentElement.appendChild(t);
+            }
           }
           setTimeout(syncToTextarea, 50);
         });
@@ -1489,12 +1538,28 @@ document.addEventListener('DOMContentLoaded',()=>{
             img.style.cssText = 'max-width:'+curSz+'%;display:inline-block;float:none;border-radius:8px;border:1px solid #e4e8f0;';
           }
           if (action === 'up') {
-            let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
-            if (t && t.previousElementSibling) editor.insertBefore(t, t.previousElementSibling);
+            let t = wrap;
+            while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+            if (!t || t === editor) return;
+            let prev = t.previousElementSibling;
+            while (prev && !prev.textContent.trim() && !prev.querySelector('img,iframe,[data-ud-vid],[data-ud-img]')) {
+              prev = prev.previousElementSibling;
+            }
+            if (prev) t.parentElement.insertBefore(t, prev);
           }
           if (action === 'down') {
-            let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
-            if (t && t.nextElementSibling) editor.insertBefore(t.nextElementSibling, t);
+            let t = wrap;
+            while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+            if (!t || t === editor) return;
+            let next = t.nextElementSibling;
+            while (next && !next.textContent.trim() && !next.querySelector('img,iframe,[data-ud-vid],[data-ud-img]')) {
+              next = next.nextElementSibling;
+            }
+            if (next && next.nextElementSibling) {
+              t.parentElement.insertBefore(t, next.nextElementSibling);
+            } else if (next) {
+              t.parentElement.appendChild(t);
+            }
           }
           setTimeout(syncToTextarea, 50);
         });
