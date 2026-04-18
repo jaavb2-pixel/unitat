@@ -755,6 +755,8 @@ function showTab(n){
     .ud-editor:focus{border-color:#1a2744;box-shadow:0 0 0 3px #1a274414}
     .ud-editor p{margin-bottom:12px}
     .ud-img-wrap-outer{position:relative!important;display:block}
+    .ud-img-wrap-outer img[src^="data:image/gif"]{display:none!important;height:0!important}
+    .ud-img-wrap-outer.ud-broken{display:none!important}
     .ud-img-controls{position:absolute;top:4px;left:4px;z-index:100;display:flex;gap:2px;background:rgba(26,39,68,0.9);border-radius:7px;padding:3px 4px}
     .ud-img-ctrl-btn{border:none;background:rgba(255,255,255,0.2);color:white;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;line-height:1}
     .ud-img-ctrl-btn:hover{background:rgba(255,255,255,0.4)}
@@ -1229,10 +1231,40 @@ function showTab(n){
       editor.querySelectorAll('img[data-udid]').forEach(img => {
         const id = img.getAttribute('data-udid');
         const real = window._udImgStore[id];
-        if (real && img.src.includes('R0lGODlh')) {
+        if (real && (img.src.includes('R0lGODlh') || img.src === '')) {
           img.src = real;
         }
       });
+      // Afegim handler per imatges externes trencades
+      editor.querySelectorAll('.ud-img-wrap-outer img').forEach(img => {
+        if (!img._udErrHandled) {
+          img._udErrHandled = true;
+          img.addEventListener('error', () => {
+            // Imatge trencada: amaguem tot el contenidor
+            const wrap = img.closest('.ud-img-wrap-outer');
+            if (wrap) wrap.classList.add('ud-broken');
+          });
+          // Si ja estava trencada
+          if (img.complete && img.naturalWidth === 0 && !img.src.includes('R0lGODlh')) {
+            const wrap = img.closest('.ud-img-wrap-outer');
+            if (wrap) wrap.classList.add('ud-broken');
+          }
+        }
+      });
+      // Eliminem els contenidors on el GIF transparent no s'ha restaurat
+      // (vol dir que la imatge s'ha perdut i no es pot recuperar)
+      setTimeout(() => {
+        editor.querySelectorAll('.ud-img-wrap-outer').forEach(wrap => {
+          const img = wrap.querySelector('img');
+          if (img && (img.src.includes('R0lGODlh') || img.naturalWidth === 0)) {
+            // Inserim un paràgraf buit al seu lloc i eliminem el contenidor
+            const p = document.createElement('p'); p.innerHTML = '<br>';
+            wrap.after(p);
+            wrap.remove();
+            syncToTextarea();
+          }
+        });
+      }, 2500); // Esperem prou perquè restoreImages haja tingut temps d'actuar
     };
     // Restaurem amb retards per cobrir quan React carrega la sessió
     [100, 500, 1000, 2000].forEach(t => setTimeout(restoreImages, t));
