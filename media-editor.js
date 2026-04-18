@@ -1327,6 +1327,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     // Sincronitza innerHTML (preserva links, imatges i vídeos)
     // Usem el setter natiu per forçar que React detecte el canvi
+    const nativeInputSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+
     // Magatzem d'imatges base64 al localStorage
     if (!window._udImgStore) {
       try { window._udImgStore = JSON.parse(localStorage.getItem('_udImgStore') || '{}'); }
