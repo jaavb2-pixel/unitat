@@ -476,21 +476,43 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
     const rs = getAppState();
     if (!rs) return base;
 
-    // Resol els IDs de CE/SB/CA a textos llegibles si tenim el catàleg al state
-    const resolveList = (ids) => {
-      if (!ids || !Array.isArray(ids) || !ids.length) return '';
-      // Si són strings simples, els tornem directament
-      if (typeof ids[0] === 'string' && ids[0].length > 30) return ids.join('\n');
-      // Si són IDs (p.ex. '1a', 'CE1'), els mostrem com a llista
-      return ids.map(id => typeof id === 'object' ? (id.nom || id.text || JSON.stringify(id)) : String(id)).join(', ');
+    // Resol els CE/SB/CA (objectes amb codi + text) a HTML amb llista
+    const resolveCompList = (items) => {
+      if (!items || !Array.isArray(items) || !items.length) return '';
+      return items.map(item => {
+        if (typeof item === 'string') return item;
+        if (typeof item === 'object') {
+          const codi = item.codi || '';
+          const text = item.text || item.nom || '';
+          return codi ? `<strong>${codi}</strong> — ${text}` : text;
+        }
+        return String(item);
+      }).map(line => `<p style="margin-bottom:6pt;padding-left:8pt;border-left:2px solid var(--gold);">${line}</p>`).join('');
     };
 
-    // Afegim els camps reals del React state
+    // Resol l'objecte DUA amb les 3 claus (rep, acc, imp)
+    const resolveDUA = (dua) => {
+      if (!dua || typeof dua !== 'object') return '';
+      const labels = {
+        rep: '🧠 Representació (el què)',
+        acc: '✋ Acció i expressió (el com)',
+        imp: '💛 Implicació (el perquè)'
+      };
+      const parts = [];
+      for (const key of ['rep','acc','imp']) {
+        const val = dua[key];
+        if (val && val.trim()) {
+          parts.push(`<div style="margin-bottom:10pt"><div style="font-weight:700;color:var(--gold);font-size:10pt;margin-bottom:3pt">${labels[key]||key}</div><div>${val.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')}</div></div>`);
+        }
+      }
+      return parts.join('');
+    };
+
     const extras = {
-      competenciesEspecifiques: resolveList(rs.selectedCE),
-      sabersBasics: resolveList(rs.selectedSB),
-      criterisAvaluacio: resolveList(rs.selectedCA),
-      dua: typeof rs.dua === 'string' ? rs.dua : (rs.dua ? JSON.stringify(rs.dua, null, 2) : ''),
+      competenciesEspecifiques: resolveCompList(rs.selectedCE),
+      sabersBasics: resolveCompList(rs.selectedSB),
+      criterisAvaluacio: resolveCompList(rs.selectedCA),
+      dua: resolveDUA(rs.dua),
       metodologia: rs.metodologia || '',
       avaluacio: rs.avaluacio || '',
       atencioDiversitat: rs.atencioDiversitat || rs.diversitat || '',
@@ -674,12 +696,12 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   </div>` : ''}
 
   ${data.objectiusGenerals ? `<h2 class="section-title">Objectius</h2><div class="box"><div class="box-text">${fmt(data.objectiusGenerals)}</div></div>` : ''}
-  ${data.competenciesEspecifiques ? `<h2 class="section-title">Competències específiques</h2><div class="box"><div class="box-text">${fmt(data.competenciesEspecifiques)}</div></div>` : ''}
-  ${data.criterisAvaluacio ? `<h2 class="section-title">Criteris d'avaluació</h2><div class="box"><div class="box-text">${fmt(data.criterisAvaluacio)}</div></div>` : ''}
-  ${data.sabersBasics ? `<h2 class="section-title">Sabers bàsics</h2><div class="box"><div class="box-text">${fmt(data.sabersBasics)}</div></div>` : ''}
+  ${data.competenciesEspecifiques ? `<h2 class="section-title">Competències específiques</h2><div class="box"><div class="box-text">${data.competenciesEspecifiques}</div></div>` : ''}
+  ${data.criterisAvaluacio ? `<h2 class="section-title">Criteris d'avaluació</h2><div class="box"><div class="box-text">${data.criterisAvaluacio}</div></div>` : ''}
+  ${data.sabersBasics ? `<h2 class="section-title">Sabers bàsics</h2><div class="box"><div class="box-text">${data.sabersBasics}</div></div>` : ''}
   ${data.metodologia ? `<h2 class="section-title">Metodologia</h2><div class="box"><div class="box-text">${fmt(data.metodologia)}</div></div>` : ''}
   ${data.avaluacio ? `<h2 class="section-title">Avaluació</h2><div class="box"><div class="box-text">${fmt(data.avaluacio)}</div></div>` : ''}
-  ${data.dua ? `<h2 class="section-title">DUA · Disseny Universal d'Aprenentatge</h2><div class="box"><div class="box-text">${fmt(data.dua)}</div></div>` : ''}
+  ${data.dua ? `<h2 class="section-title">DUA · Disseny Universal d'Aprenentatge</h2><div class="box box-gold"><div class="box-text">${data.dua}</div></div>` : ''}
   ${data.atencioDiversitat ? `<h2 class="section-title">Atenció a la diversitat</h2><div class="box"><div class="box-text">${fmt(data.atencioDiversitat)}</div></div>` : ''}
   ${data.recursos ? `<h2 class="section-title">Recursos</h2><div class="box"><div class="box-text">${fmt(data.recursos)}</div></div>` : ''}
   ${data.temporitzacio ? `<h2 class="section-title">Temporització</h2><div class="box"><div class="box-text">${fmt(data.temporitzacio)}</div></div>` : ''}
