@@ -796,14 +796,19 @@ document.addEventListener('DOMContentLoaded',()=>{
     if (!container) return;
 
     // Elimina botons originals de l'app React que no volem
-    container.querySelectorAll('a, button').forEach(el => {
-      const txt = (el.textContent || '').trim();
-      // Elimina App HTML
-      if (txt.includes('App HTML')) { el.remove(); return; }
-      // Elimina el botó HTML original (sense emoji), però conserva HTML Alumnes
-      if (!el.id?.startsWith('ud-') && !txt.includes('Alumnes') && !txt.includes('Canva')
-          && !txt.includes('📦') && !txt.includes('📂') && !txt.includes('🌐') && !txt.includes('🎨')) {
-        if (txt === 'HTML' || txt.startsWith('HTML ') || /^📄?\s*HTML$/i.test(txt)) el.remove();
+    // Els botons nous (HTML Alumnes, Canva, Exportar, Importar) tenen IDs que comencen per 'ud-'
+    container.querySelectorAll('button').forEach(btn => {
+      if (btn.id && btn.id.startsWith('ud-')) return; // no toquem els nostres
+      const txt = (btn.textContent || '').trim().toLowerCase();
+      // Eliminem els botons originals: HTML, DOC, PDF, App HTML
+      if (txt === 'html' || txt === 'doc' || txt === 'pdf' || txt.includes('app html')) {
+        btn.remove();
+      }
+    });
+    container.querySelectorAll('a').forEach(a => {
+      const txt = (a.textContent || '').trim().toLowerCase();
+      if (txt === 'html' || txt === 'doc' || txt === 'pdf' || txt.includes('app html')) {
+        a.remove();
       }
     });
 
@@ -1413,17 +1418,17 @@ document.addEventListener('DOMContentLoaded',()=>{
       if (isTyping) return;
       if (textarea.value !== lastVal) {
         lastVal = textarea.value;
-        const hasImages = editor.querySelector('img, [data-ud-img], [data-ud-vid]');
-        if (!hasImages) {
-          const v = textarea.value;
-          if (!v.includes('<')) {
-            editor.innerHTML = v.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('') || '<p><br></p>';
-          } else {
-            editor.innerHTML = v;
-          }
+        const v = textarea.value;
+        // Sempre actualitzem l'editor amb el nou contingut del textarea
+        if (!v.includes('<')) {
+          editor.innerHTML = v.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('') || '<p><br></p>';
+        } else {
+          editor.innerHTML = v;
         }
-        // Restaurem imatges per si React ha carregat una sessió guardada
+        // Després restaurem les imatges des del magatzem
         setTimeout(restoreImages, 50);
+        setTimeout(restoreImages, 200);
+        setTimeout(restoreImages, 500);
       }
     }, 300);
 
