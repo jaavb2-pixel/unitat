@@ -795,9 +795,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     const container = document.querySelector('.header-actions');
     if (!container) return;
 
-    // Elimina el botó "App HTML"
+    // Elimina botons originals de l'app React que no volem
     container.querySelectorAll('a, button').forEach(el => {
-      if (el.textContent?.includes('App HTML')) el.remove();
+      const txt = (el.textContent || '').trim();
+      // Elimina App HTML
+      if (txt.includes('App HTML')) { el.remove(); return; }
+      // Elimina el botó HTML original (sense emoji), però conserva HTML Alumnes
+      if (!el.id?.startsWith('ud-') && !txt.includes('Alumnes') && !txt.includes('Canva')
+          && !txt.includes('📦') && !txt.includes('📂') && !txt.includes('🌐') && !txt.includes('🎨')) {
+        if (txt === 'HTML' || txt.startsWith('HTML ') || /^📄?\s*HTML$/i.test(txt)) el.remove();
+      }
     });
 
     // Botons exportar / importar
@@ -1319,7 +1326,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     // Sincronitza innerHTML (preserva links, imatges i vídeos)
     // Usem el setter natiu per forçar que React detecte el canvi
-    // Magatzem d'imatges base64
+    // Magatzem d'imatges base64 al localStorage
     if (!window._udImgStore) {
       try { window._udImgStore = JSON.parse(localStorage.getItem('_udImgStore') || '{}'); }
       catch(e) { window._udImgStore = {}; }
@@ -1332,20 +1339,22 @@ document.addEventListener('DOMContentLoaded',()=>{
       // Al clon per a React: substituïm base64 per ID curt
       tmp.querySelectorAll('img').forEach(img => {
         const src = img.getAttribute('src') || '';
-        if (!src.startsWith('data:image/gif')) {
-          let id = img.getAttribute('data-udid');
-          if (!id || !window._udImgStore[id]) {
-            id = 'udimg_' + Math.random().toString(36).slice(2,8);
-            window._udImgStore[id] = src;
-            try { localStorage.setItem('_udImgStore', JSON.stringify(window._udImgStore)); } catch(e){}
-            img.setAttribute('data-udid', id);
-            // Actualitzem també l'element real de l'editor
-            editor.querySelectorAll(`img[src="${CSS.escape ? CSS.escape(src) : src}"]`).forEach(realImg => {
+        if (src.startsWith('data:image/gif')) return; // ja processat
+        if (!src.startsWith('data:')) return; // imatges externes no cal processar-les
+        let id = img.getAttribute('data-udid');
+        if (!id || !window._udImgStore[id]) {
+          id = 'udimg_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+          window._udImgStore[id] = src;
+          try { localStorage.setItem('_udImgStore', JSON.stringify(window._udImgStore)); } catch(e){}
+          img.setAttribute('data-udid', id);
+          // També l'element real de l'editor
+          editor.querySelectorAll('img').forEach(realImg => {
+            if (realImg.getAttribute('src') === src && !realImg.getAttribute('data-udid')) {
               realImg.setAttribute('data-udid', id);
-            });
-          }
-          img.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+            }
+          });
         }
+        img.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
       });
       const val = tmp.innerHTML;
       if (nativeInputSetter) nativeInputSetter.call(textarea, val);
@@ -1354,48 +1363,26 @@ document.addEventListener('DOMContentLoaded',()=>{
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
-    // Restaura imatges reals a l'editor (substitueix el GIF transparent per la base64 real)
+    // Restaura imatges reals: substitueix GIF transparent pel base64 real del magatzem
     const restoreImages = () => {
       editor.querySelectorAll('img[data-udid]').forEach(img => {
         const id = img.getAttribute('data-udid');
         const real = window._udImgStore[id];
-        if (real && (img.src.includes('R0lGODlh') || img.src === '')) {
+        if (real && img.src.includes('R0lGODlh')) {
           img.src = real;
         }
       });
-      // Afegim handler per imatges externes trencades
-      editor.querySelectorAll('.ud-img-wrap-outer img').forEach(img => {
-        if (!img._udErrHandled) {
-          img._udErrHandled = true;
-          img.addEventListener('error', () => {
-            // Imatge trencada: amaguem tot el contenidor
-            const wrap = img.closest('.ud-img-wrap-outer');
-            if (wrap) wrap.classList.add('ud-broken');
-          });
-          // Si ja estava trencada
-          if (img.complete && img.naturalWidth === 0 && !img.src.includes('R0lGODlh')) {
-            const wrap = img.closest('.ud-img-wrap-outer');
-            if (wrap) wrap.classList.add('ud-broken');
-          }
-        }
-      });
-      // Eliminem els contenidors on el GIF transparent no s'ha restaurat
-      // (vol dir que la imatge s'ha perdut i no es pot recuperar)
-      setTimeout(() => {
-        editor.querySelectorAll('.ud-img-wrap-outer').forEach(wrap => {
-          const img = wrap.querySelector('img');
-          if (img && (img.src.includes('R0lGODlh') || img.naturalWidth === 0)) {
-            // Inserim un paràgraf buit al seu lloc i eliminem el contenidor
-            const p = document.createElement('p'); p.innerHTML = '<br>';
-            wrap.after(p);
-            wrap.remove();
-            syncToTextarea();
-          }
-        });
-      }, 2500); // Esperem prou perquè restoreImages haja tingut temps d'actuar
     };
-    // Restaurem amb retards per cobrir quan React carrega la sessió
-    [100, 500, 1000, 2000].forEach(t => setTimeout(restoreImages, t));
+
+    // Executem restoreImages cada vegada que el contingut de l'editor canvia
+    const imgObserver = new MutationObserver(() => {
+      restoreImages();
+    });
+    imgObserver.observe(editor, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+
+    // Restaurem també periòdicament per cobrir canvis externs
+    [100, 300, 600, 1000, 2000].forEach(t => setTimeout(restoreImages, t));
+
     editor.addEventListener('input', syncToTextarea);
 
     // Enganxar imatges (Ctrl+V)
