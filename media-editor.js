@@ -2308,16 +2308,40 @@ document.addEventListener('DOMContentLoaded',()=>{
     // Fix sessions guardades: deduplicar per títol
     fixSavedSessions();
 
-    new MutationObserver(()=>{
-      document.querySelectorAll('textarea').forEach(ta=>{
-        if(ta.dataset.udDone)return;
-        if(parseInt(ta.getAttribute('rows')||0)>=7) convertToEditor(ta);
+    const processTextareas = () => {
+      document.querySelectorAll('textarea').forEach(ta => {
+        // Si el textarea està visible però no té editor, és un textarea nou
+        // (React l'ha re-renderitzat després de desar)
+        if (ta.dataset.udDone && ta.style.display !== 'none') {
+          // React ha recreat el textarea: netegem l'editor orfe del costat
+          const prevEditor = ta.previousElementSibling;
+          const prevToolbar = prevEditor?.previousElementSibling;
+          if (prevEditor && prevEditor.classList.contains('ud-editor')) {
+            prevEditor.remove();
+            if (prevToolbar && prevToolbar.classList.contains('ud-toolbar')) prevToolbar.remove();
+          }
+          // Forcem la re-conversió
+          delete ta.dataset.udDone;
+        }
+        if (ta.dataset.udDone) return;
+        if (parseInt(ta.getAttribute('rows') || 0) >= 7) convertToEditor(ta);
+      });
+      // Netegem editors orfes (sense textarea germà)
+      document.querySelectorAll('.ud-editor').forEach(ed => {
+        const ta = ed.nextElementSibling;
+        if (!ta || ta.tagName !== 'TEXTAREA') {
+          const toolbar = ed.previousElementSibling;
+          if (toolbar && toolbar.classList.contains('ud-toolbar')) toolbar.remove();
+          ed.remove();
+        }
       });
       setupHeader();
       injectSASection();
-    }).observe(document.body,{childList:true,subtree:true});
+    };
 
-    [500,1000,2000,3000].forEach(t=>setTimeout(()=>{setupHeader();injectSASection();},t));
+    new MutationObserver(processTextareas).observe(document.body, { childList: true, subtree: true });
+
+    [500,1000,2000,3000].forEach(t => setTimeout(() => { setupHeader(); injectSASection(); }, t));
   }
 
   // Elimina duplicats del localStorage, mantenint només l'entrada més recent per títol
