@@ -603,7 +603,7 @@ body{font-family:'Inter',sans-serif;background:white;color:var(--ink);font-size:
 .cover-footer{font-size:9pt;color:rgba(255,255,255,.35);letter-spacing:1px;text-transform:uppercase;margin-top:18pt}
 
 /* PÀGINES INTERIORS */
-.page{padding:18mm 20mm;page-break-after:always}
+.page{page-break-after:always}
 .page:last-child{page-break-after:auto}
 .page-header{display:flex;align-items:baseline;justify-content:space-between;padding-bottom:10pt;border-bottom:1.5px solid var(--ink);margin-bottom:18pt}
 .page-title{font-family:'Fraunces',serif;font-size:22pt;font-weight:700;color:var(--ink);letter-spacing:-.01em}
@@ -641,13 +641,29 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
 .footer{text-align:center;padding-top:16pt;margin-top:16pt;border-top:1px solid var(--line);font-size:8pt;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
 
 /* PRINT */
-@page{size:A4;margin:0}
+@page{size:A4;margin:18mm 20mm}
 @media print{
   body{background:white}
-  .cover,.page{break-after:page}
-  .box,.sess-header{break-inside:avoid}
-  h2.section-title{break-after:avoid}
+  /* La portada i les pàgines principals sempre comencen en pàgina nova */
+  .cover{break-after:page;min-height:auto;padding:60mm 20mm 20mm}
+  .page{break-after:page;padding:0}
+  .page:last-child{break-after:auto}
+  /* Les caixes poden partir-se, però els títols es queden amb el contingut */
+  .box{break-inside:auto}
+  h3.sub-title{break-after:avoid;break-inside:avoid}
+  h2.section-title{break-after:avoid;break-inside:avoid}
+  .sess-header{break-inside:avoid;break-after:avoid}
+  /* Un grup "títol + caixa" ha de mantenir-se junt SI CAP en una pàgina */
+  .keep-with-next{break-after:avoid}
+  /* Si la caixa es parteix, la part que passa a la següent pàgina respecta el marge @page */
+  .box, .box-text{orphans:3;widows:3}
   a{color:var(--ink);text-decoration:underline}
+}
+
+/* En pantalla, reduïm els espais per veure-ho més còmode */
+@media screen{
+  .page{padding:18mm 20mm}
+  .cover{min-height:95vh;padding:60mm 20mm 20mm}
 }
 
 /* TAULA D'ÍNDEX */
@@ -711,8 +727,14 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   ${data.atencioDiversitat ? `<h2 class="section-title">Atenció a la diversitat</h2><div class="box"><div class="box-text">${fmt(data.atencioDiversitat)}</div></div>` : ''}
   ${data.recursos ? `<h2 class="section-title">Recursos</h2><div class="box"><div class="box-text">${fmt(data.recursos)}</div></div>` : ''}
   ${data.temporitzacio ? `<h2 class="section-title">Temporització</h2><div class="box"><div class="box-text">${fmt(data.temporitzacio)}</div></div>` : ''}
+</section>
 
-  <h2 class="section-title">Índex de sessions</h2>
+<!-- ÍNDEX DE SESSIONS EN PÀGINA PRÒPIA -->
+<section class="page">
+  <div class="page-header">
+    <h1 class="page-title">Índex de sessions</h1>
+    <div class="page-tag">Contingut</div>
+  </div>
   <div class="toc">
     ${sessList.map((s,i)=>`<div class="toc-item"><span class="toc-num">${i+1}.</span><span class="toc-title">${s.nom||('Sessió '+(i+1))}</span></div>`).join('')}
   </div>
@@ -734,7 +756,7 @@ ${sessList.map((s,i)=>`
   ${s.metodologia ? `<h3 class="sub-title">Metodologia</h3><div class="box"><div class="box-text">${fmt(s.metodologia)}</div></div>` : ''}
   ${s.contingutProfessor ? `<h3 class="sub-title">Notes per al professorat</h3><div class="box box-gold"><div class="box-text">${fmt(s.contingutProfessor)}</div></div>` : ''}
 
-  <h3 class="sub-title">Desenvolupament / continguts per a l'alumnat</h3>
+  <div class="keep-with-next"><h3 class="sub-title">Desenvolupament / continguts per a l'alumnat</h3></div>
   <div class="box"><div class="box-text">${cleanContent(s.contingutAlumne||s.contingut||'')}</div></div>
 
   ${s.exercicis ? `<h3 class="sub-title">Exercicis i activitats</h3><div class="box"><div class="box-text">${fmt(s.exercicis)}</div></div>` : ''}
