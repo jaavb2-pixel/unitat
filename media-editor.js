@@ -964,7 +964,7 @@ function showTab(n){
   function makeVidWrap(id, cap, syncFn, editor) {
     const wrap = document.createElement('div');
     wrap.setAttribute('data-ud-vid', id);
-    wrap.className = 'ud-img-wrap-outer'; // reutilitzem els mateixos estils
+    wrap.className = 'ud-img-wrap-outer';
     wrap.contentEditable = 'false';
     wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
 
@@ -980,36 +980,46 @@ function showTab(n){
       '<button class="ud-img-ctrl-btn" data-action="right">→</button>' +
       '<button class="ud-img-ctrl-btn ud-img-del" data-action="del">🗑</button>';
 
-    // Contenidor del vídeo (quadrat per defecte al 40%)
+    // Miniatura clicable (no iframe)
+    const thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+    const ytUrl = `https://www.youtube.com/watch?v=${id}`;
+
     const vidBox = document.createElement('div');
     vidBox.className = 'ud-vid-box';
-    vidBox.style.cssText = 'display:inline-block;width:40%;position:relative;';
+    vidBox.style.cssText = 'display:inline-block;width:40%;position:relative;cursor:pointer;';
 
-    const iframe = document.createElement('iframe');
-    iframe.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
-    iframe.setAttribute('allowfullscreen','');
-    iframe.setAttribute('allow','accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture');
-    // Proporció 16:9 via padding trick
-    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:8px;';
+    const thumbWrap = document.createElement('div');
+    thumbWrap.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;';
 
-    // Wrapper amb proporció 16:9
-    const ratio = document.createElement('div');
-    ratio.style.cssText = 'position:relative;width:100%;padding-bottom:56.25%;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;';
-    ratio.appendChild(iframe);
-    vidBox.appendChild(ratio);
+    const thumbImg = document.createElement('img');
+    thumbImg.src = thumb;
+    thumbImg.alt = cap || 'Vídeo YouTube';
+    thumbImg.style.cssText = 'width:100%;display:block;';
+
+    // Botó de play
+    const playBtn = document.createElement('div');
+    playBtn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;';
+    playBtn.innerHTML = '<svg viewBox="0 0 68 48" width="56" height="40"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="rgba(0,0,0,0.7)"/><path d="M45 24 27 14v20" fill="#fff"/></svg>';
+
+    thumbWrap.appendChild(thumbImg);
+    thumbWrap.appendChild(playBtn);
+
+    // Clic obre YouTube
+    thumbWrap.addEventListener('click', () => window.open(ytUrl, '_blank'));
+
+    vidBox.appendChild(thumbWrap);
 
     if (cap) {
       const capEl = document.createElement('div');
-      capEl.className = 'ud-video-caption';
-      capEl.textContent = '▶ ' + cap;
       capEl.style.cssText = 'background:#1a2744;color:white;font-size:12px;padding:5px 10px;text-align:center;border-radius:0 0 8px 8px;';
+      capEl.textContent = '▶ ' + cap;
       vidBox.appendChild(capEl);
     }
 
     wrap.appendChild(controls);
     wrap.appendChild(vidBox);
 
-    const getCurSz = () => parseFloat(vidBox.style.width)||40;
+    const getCurSz = () => parseFloat(vidBox.style.width) || 40;
 
     controls.querySelectorAll('.ud-img-ctrl-btn').forEach(btn => {
       btn.addEventListener('mousedown', ev => {
@@ -1027,15 +1037,15 @@ function showTab(n){
         if (action === 'bigger')  vidBox.style.width = Math.min(100,curSz+10)+'%';
         if (action === 'left') {
           wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
-          vidBox.style.cssText = `display:block;width:${curSz}%;float:left;margin:0 18px 8px 0;`;
+          vidBox.style.cssText = `display:block;width:${curSz}%;float:left;margin:0 18px 8px 0;cursor:pointer;`;
         }
         if (action === 'right') {
           wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
-          vidBox.style.cssText = `display:block;width:${curSz}%;float:right;margin:0 0 8px 18px;`;
+          vidBox.style.cssText = `display:block;width:${curSz}%;float:right;margin:0 0 8px 18px;cursor:pointer;`;
         }
         if (action === 'center') {
           wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
-          vidBox.style.cssText = `display:inline-block;width:${curSz}%;float:none;`;
+          vidBox.style.cssText = `display:inline-block;width:${curSz}%;float:none;cursor:pointer;`;
         }
         if (action === 'up') {
           let t = wrap; while (t && t.parentElement !== editor) t = t.parentElement;
