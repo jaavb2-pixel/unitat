@@ -933,6 +933,29 @@ document.addEventListener('DOMContentLoaded',()=>{
       };
       container.appendChild(btnCanva);
     }
+
+    // 4. Botó PDF Professor
+    if (!document.getElementById('ud-pdf-prof-btn')) {
+      const btnPDF = document.createElement('button');
+      btnPDF.id = 'ud-pdf-prof-btn';
+      btnPDF.className = 'btn btn-sm btn-outline header-btn';
+      btnPDF.textContent = '📕 PDF Professor';
+      btnPDF.title = 'Genera un PDF complet per al professor (tots els camps)';
+      btnPDF.style.cssText = 'border-color:#0d1526;color:#0d1526';
+      btnPDF.onmouseover = () => { btnPDF.style.background='#0d1526'; btnPDF.style.color='white'; };
+      btnPDF.onmouseout  = () => { btnPDF.style.background=''; btnPDF.style.color='#0d1526'; };
+      btnPDF.onclick = () => {
+        const data = collectDataForTeacher();
+        if (!data.sessions.length) { alert('Genera el contingut de les sessions primer.'); return; }
+        const html = generateTeacherHTML(data);
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+        // Esperem que carreguen les fonts i llavors obrim el diàleg d'impressió
+        setTimeout(() => { try { win.focus(); win.print(); } catch(e){} }, 800);
+      };
+      container.appendChild(btnPDF);
+    }
   }
 
   // ── BARRA D'EINES MEDIA ──────────────────────────────────────────
