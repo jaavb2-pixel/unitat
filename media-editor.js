@@ -153,6 +153,58 @@
     } catch(e){}
   }
 
+  // ── RÚBRICA: ESTAT I PERSISTÈNCIA ────────────────────────────────
+  const RUBRIC_LEVELS = [
+    { key: 'exc', label: 'Excel·lent', range: '9-10', color: '#2d6a4f' },
+    { key: 'not', label: 'Notable',    range: '7-8',  color: '#0d6efd' },
+    { key: 'be',  label: 'Bé',         range: '5-6',  color: '#b8860b' },
+    { key: 'ins', label: 'Insuficient',range: '<5',   color: '#c1272d' }
+  ];
+
+  const RUBRIC_DEFAULT_DIMENSIONS = [
+    'Continguts i coneixements',
+    'Procediments i destreses',
+    'Actitud i implicació',
+    'Producte final / presentació',
+    'Expressió i comunicació'
+  ];
+
+  function getRubricKey() {
+    const rs = getAppState();
+    const titol = rs?.titol || document.querySelector('input[type=text]')?.value || '';
+    return 'ud_rub_' + (titol.toLowerCase().trim().replace(/\s+/g,'_') || 'default');
+  }
+
+  function getRubricData() {
+    const rows = document.querySelectorAll('.rub-row');
+    const data = { dimensions: [] };
+    rows.forEach(row => {
+      const dim = row.querySelector('.rub-dim')?.value?.trim() || '';
+      const cells = {};
+      RUBRIC_LEVELS.forEach(lvl => {
+        cells[lvl.key] = row.querySelector(`.rub-cell-${lvl.key}`)?.value?.trim() || '';
+      });
+      if (dim || Object.values(cells).some(v => v)) {
+        data.dimensions.push({ nom: dim, ...cells });
+      }
+    });
+    return data;
+  }
+
+  function saveRubricData() {
+    const data = getRubricData();
+    if (!data.dimensions.length) return;
+    try { localStorage.setItem(getRubricKey(), JSON.stringify(data)); } catch(e){}
+  }
+
+  function loadRubricData() {
+    try {
+      const raw = localStorage.getItem(getRubricKey());
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch(e){ return null; }
+  }
+
   // ── INJECTA LA SECCIÓ DE SA AL DOM ──────────────────────────────
   function injectSASection() {
     if (document.getElementById('ud-sa-section')) return;
@@ -230,6 +282,173 @@
     if (titleInput && !titleInput._udSAWatched) {
       titleInput._udSAWatched = true;
       titleInput.addEventListener('change', () => setTimeout(loadSAData, 100));
+    }
+  }
+
+  // ── INJECTA LA SECCIÓ DE RÚBRICA AL DOM ─────────────────────────
+  function injectRubricSection() {
+    if (document.getElementById('ud-rubric-section')) return;
+
+    // Busquem la secció de la SA per inserir-nos a continuació
+    const saSection = document.getElementById('ud-sa-section');
+    if (!saSection) return; // esperem que la SA s'haja injectat primer
+
+    const section = document.createElement('div');
+    section.id = 'ud-rubric-section';
+    section.className = 'card';
+    section.style.cssText = 'margin-top:20px;padding:22px;background:white;border-radius:12px;border:1.5px solid #e4e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.04)';
+
+    const saved = loadRubricData();
+    const dims = saved?.dimensions?.length ? saved.dimensions : RUBRIC_DEFAULT_DIMENSIONS.map(n => ({nom:n, exc:'', not:'', be:'', ins:''}));
+
+    section.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <div style="font-size:28px">📊</div>
+        <div style="flex:1">
+          <div style="font-size:11px;font-weight:700;color:#7a5c00;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:2px">Avaluació · LOMLOE</div>
+          <h3 style="margin:0;font-size:18px;color:#1a2744;font-weight:700">Rúbrica d'avaluació</h3>
+        </div>
+        <button id="rub-ia-btn" type="button" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">✨ Generar amb IA</button>
+      </div>
+      <div style="color:#64748b;font-size:13px;margin-bottom:14px">Defineix els descriptors per a cada dimensió i nivell d'assoliment.</div>
+      <div style="overflow-x:auto">
+        <table id="rub-table" style="width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:820px">
+          <thead>
+            <tr style="background:#f8fafc">
+              <th style="padding:10px;border:1px solid #e4e8f0;border-radius:8px 0 0 0;text-align:left;min-width:160px;font-weight:700;color:#1a2744">Dimensió</th>
+              ${RUBRIC_LEVELS.map((l,i) => `<th style="padding:10px;border:1px solid #e4e8f0;border-left:none;${i===RUBRIC_LEVELS.length-1?'border-radius:0 8px 0 0;':''}text-align:center;font-weight:700;color:white;background:${l.color}"><div>${l.label}</div><div style="font-size:10px;opacity:.9;font-weight:500">${l.range}</div></th>`).join('')}
+            </tr>
+          </thead>
+          <tbody id="rub-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button id="rub-add-row" type="button" style="background:#f0f4ff;color:#1a2744;border:1px solid #c8d0e8;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">+ Afegir dimensió</button>
+        <button id="rub-reset" type="button" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">↺ Reiniciar per defecte</button>
+      </div>
+    `;
+
+    saSection.parentNode.insertBefore(section, saSection.nextSibling);
+
+    const tbody = document.getElementById('rub-tbody');
+    const renderRow = (dim) => {
+      const tr = document.createElement('tr');
+      tr.className = 'rub-row';
+      tr.innerHTML = `
+        <td style="padding:6px;border:1px solid #e4e8f0;vertical-align:top;background:#fafbfc">
+          <input class="rub-dim" type="text" value="${(dim.nom||'').replace(/"/g,'&quot;')}" placeholder="Nom de la dimensió" style="width:100%;padding:7px 9px;border:1px solid #e4e8f0;border-radius:6px;font-size:13px;font-family:inherit;font-weight:600;color:#1a2744">
+          <button class="rub-del" type="button" title="Eliminar dimensió" style="margin-top:6px;background:none;border:none;color:#991b1b;cursor:pointer;font-size:11px;padding:2px">🗑 Eliminar</button>
+        </td>
+        ${RUBRIC_LEVELS.map(l=>`<td style="padding:4px;border:1px solid #e4e8f0;vertical-align:top"><textarea class="rub-cell-${l.key}" placeholder="Descriptor per ${l.label.toLowerCase()}..." rows="3" style="width:100%;padding:7px 9px;border:1px solid #e4e8f0;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;min-height:64px">${(dim[l.key]||'').replace(/</g,'&lt;')}</textarea></td>`).join('')}
+      `;
+      tbody.appendChild(tr);
+      // Listeners de guardat automàtic
+      tr.querySelectorAll('input, textarea').forEach(el => {
+        el.addEventListener('input', saveRubricData);
+        el.addEventListener('change', saveRubricData);
+      });
+      tr.querySelector('.rub-del').addEventListener('click', () => {
+        if (tbody.children.length > 1) { tr.remove(); saveRubricData(); }
+        else alert('Has de mantenir almenys una dimensió.');
+      });
+    };
+
+    dims.forEach(renderRow);
+
+    document.getElementById('rub-add-row').onclick = () => {
+      renderRow({ nom: '', exc:'', not:'', be:'', ins:'' });
+    };
+    document.getElementById('rub-reset').onclick = () => {
+      if (!confirm('Vols reiniciar la rúbrica amb les dimensions per defecte? Es perdran els canvis actuals.')) return;
+      tbody.innerHTML = '';
+      RUBRIC_DEFAULT_DIMENSIONS.forEach(n => renderRow({nom:n, exc:'', not:'', be:'', ins:''}));
+      saveRubricData();
+    };
+    document.getElementById('rub-ia-btn').onclick = generateRubricWithAI;
+  }
+
+  // ── GENERA RÚBRICA AMB IA ────────────────────────────────────────
+  async function generateRubricWithAI() {
+    const btn = document.getElementById('rub-ia-btn');
+    const rs = getAppState();
+    const titol = rs?.titol || document.querySelector('input[type=text]')?.value || '';
+    const assignatura = rs?.assignatura || '';
+    const nivell = rs?.nivell || '';
+    const justificacio = rs?.justificacio || '';
+    const criteris = (rs?.selectedCA || []).map(c => typeof c==='object' ? `${c.codi}: ${c.text}` : c).join('\n');
+
+    if (!titol) { alert('Omple primer el títol de la unitat.'); return; }
+
+    btn.textContent = '⏳ Generant...';
+    btn.disabled = true;
+
+    try {
+      const prompt = `Ets un expert en didàctica i avaluació competencial LOMLOE (Decret 107/2022 Comunitat Valenciana).
+
+Crea una rúbrica d'avaluació per a la següent unitat didàctica:
+- Títol: ${titol}
+- Àrea: ${assignatura}
+- Nivell: ${nivell}r d'ESO
+- Justificació: ${justificacio}
+${criteris ? `- Criteris d'avaluació:\n${criteris}` : ''}
+
+Genera entre 4 i 6 dimensions d'avaluació rellevants per a aquesta unitat. Per a cada dimensió, escriu un descriptor breu (1-2 frases) per a cada un dels 4 nivells d'assoliment:
+- exc: Excel·lent (9-10)
+- not: Notable (7-8)
+- be: Bé (5-6)
+- ins: Insuficient (<5)
+
+Els descriptors han de ser concrets, observables i graduals (demostrar progressió clara entre nivells). Escriu en valencià.
+
+Respon NOMÉS amb JSON vàlid amb aquesta estructura exacta (sense text addicional, sense markdown):
+{
+  "dimensions": [
+    { "nom": "Nom de la dimensió", "exc": "descriptor...", "not": "descriptor...", "be": "descriptor...", "ins": "descriptor..." }
+  ]
+}`;
+
+      const response = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      if (!response.ok) throw new Error('Error del servidor');
+      const result = await response.json();
+      const text = result.text || '';
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+
+      if (!parsed.dimensions || !Array.isArray(parsed.dimensions)) throw new Error('Format invàlid');
+
+      // Reomplim la taula amb les dimensions generades
+      const tbody = document.getElementById('rub-tbody');
+      tbody.innerHTML = '';
+      parsed.dimensions.forEach(dim => {
+        const tr = document.createElement('tr');
+        tr.className = 'rub-row';
+        tr.innerHTML = `
+          <td style="padding:6px;border:1px solid #e4e8f0;vertical-align:top;background:#fafbfc">
+            <input class="rub-dim" type="text" value="${(dim.nom||'').replace(/"/g,'&quot;')}" placeholder="Nom de la dimensió" style="width:100%;padding:7px 9px;border:1px solid #e4e8f0;border-radius:6px;font-size:13px;font-family:inherit;font-weight:600;color:#1a2744">
+            <button class="rub-del" type="button" title="Eliminar dimensió" style="margin-top:6px;background:none;border:none;color:#991b1b;cursor:pointer;font-size:11px;padding:2px">🗑 Eliminar</button>
+          </td>
+          ${RUBRIC_LEVELS.map(l=>`<td style="padding:4px;border:1px solid #e4e8f0;vertical-align:top"><textarea class="rub-cell-${l.key}" rows="3" style="width:100%;padding:7px 9px;border:1px solid #e4e8f0;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;min-height:64px">${(dim[l.key]||'').replace(/</g,'&lt;')}</textarea></td>`).join('')}
+        `;
+        tbody.appendChild(tr);
+        tr.querySelectorAll('input, textarea').forEach(el => {
+          el.addEventListener('input', saveRubricData);
+          el.addEventListener('change', saveRubricData);
+        });
+        tr.querySelector('.rub-del').addEventListener('click', () => {
+          if (tbody.children.length > 1) { tr.remove(); saveRubricData(); }
+        });
+      });
+      saveRubricData();
+
+    } catch(e) {
+      alert('Error generant la rúbrica: ' + e.message);
+    } finally {
+      btn.textContent = '✨ Generar amb IA';
+      btn.disabled = false;
     }
   }
 
@@ -520,6 +739,7 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       recursos: rs.recursos || '',
       temporitzacio: rs.temporitzacio || '',
       objectiusGenerals: rs.objectiusGenerals || rs.objectius || '',
+      rubrica: loadRubricData(),
     };
 
     // Per cada sessió, recollim més detall
@@ -667,6 +887,18 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
 .toc-num{font-family:'Fraunces',serif;font-weight:700;color:var(--gold);min-width:30pt}
 .toc-title{flex:1;color:var(--ink-soft)}
 .toc-dots{flex:1;border-bottom:1px dotted var(--muted);height:0;margin:0 8pt 4pt}
+
+/* RÚBRICA */
+.rubric-table{width:100%;border-collapse:separate;border-spacing:0;font-size:9.5pt;margin-top:10pt;table-layout:fixed}
+.rubric-table thead tr{background:#0d1526}
+.rubric-table .rub-dim-head{padding:8pt 10pt;color:white;font-weight:700;text-align:left;width:18%;border-radius:6pt 0 0 0;font-size:10pt}
+.rubric-table .rub-lvl-head{padding:8pt 6pt;color:white;font-weight:700;text-align:center;font-size:10pt;line-height:1.2}
+.rubric-table .rub-lvl-head:last-child{border-radius:0 6pt 0 0}
+.rubric-table .rub-lvl-head span{font-size:8pt;font-weight:500;opacity:.85;display:block;margin-top:2pt}
+.rubric-table tbody tr{page-break-inside:avoid;break-inside:avoid}
+.rubric-table tbody tr:nth-child(even) td{background:#fafaf6}
+.rubric-table tbody td{padding:8pt 10pt;border:1px solid var(--line);vertical-align:top;line-height:1.45;color:var(--ink-soft)}
+.rubric-table .rub-dim-cell{font-weight:700;color:var(--ink);background:#f0ede4!important;font-family:'Fraunces',serif;font-size:10pt}
 </style>
 </head><body>
 
@@ -723,6 +955,37 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   ${data.recursos ? `<h2 class="section-title">Recursos</h2><div class="box"><div class="box-text">${fmt(data.recursos)}</div></div>` : ''}
   ${data.temporitzacio ? `<h2 class="section-title">Temporització</h2><div class="box"><div class="box-text">${fmt(data.temporitzacio)}</div></div>` : ''}
 </section>
+
+${data.rubrica && data.rubrica.dimensions && data.rubrica.dimensions.length ? `
+<!-- RÚBRICA D'AVALUACIÓ -->
+<section class="page">
+  <div class="page-header">
+    <h1 class="page-title">Rúbrica d'avaluació</h1>
+    <div class="page-tag">Avaluació</div>
+  </div>
+  <table class="rubric-table">
+    <thead>
+      <tr>
+        <th class="rub-dim-head">Dimensió</th>
+        <th class="rub-lvl-head" style="background:#2d6a4f">Excel·lent<br><span>9-10</span></th>
+        <th class="rub-lvl-head" style="background:#0d6efd">Notable<br><span>7-8</span></th>
+        <th class="rub-lvl-head" style="background:#b8860b">Bé<br><span>5-6</span></th>
+        <th class="rub-lvl-head" style="background:#c1272d">Insuficient<br><span>&lt;5</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${data.rubrica.dimensions.map(d => `
+        <tr>
+          <td class="rub-dim-cell">${d.nom || ''}</td>
+          <td>${(d.exc||'').replace(/\n/g,'<br>')}</td>
+          <td>${(d.not||'').replace(/\n/g,'<br>')}</td>
+          <td>${(d.be ||'').replace(/\n/g,'<br>')}</td>
+          <td>${(d.ins||'').replace(/\n/g,'<br>')}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+</section>` : ''}
 
 <!-- ÍNDEX DE SESSIONS EN PÀGINA PRÒPIA -->
 <section class="page">
@@ -2374,6 +2637,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       });
       setupHeader();
       injectSASection();
+      injectRubricSection();
     };
 
     new MutationObserver(processTextareas).observe(document.body, { childList: true, subtree: true });
@@ -2381,7 +2645,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     // També polling cada 500ms per capturar casos on el MutationObserver no es dispara
     setInterval(processTextareas, 500);
 
-    [500,1000,2000,3000].forEach(t => setTimeout(() => { setupHeader(); injectSASection(); }, t));
+    [500,1000,2000,3000].forEach(t => setTimeout(() => { setupHeader(); injectSASection(); injectRubricSection(); }, t));
 
     // Netegem magatzem d'imatges orfes (IDs que no estan en cap unitat guardada)
     cleanOrphanImages();
