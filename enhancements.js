@@ -117,15 +117,6 @@
       'cursor:pointer;font-family:inherit;font-weight:600">🗑</button>';
 
     wrap.innerHTML = inner;
-
-    wrap.querySelector('.ud-audio-del').onclick = function () {
-      if (confirm('Esborrar aquest àudio?')) {
-        const editor = wrap.closest('.ud-editor');
-        wrap.remove();
-        if (editor) editor.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    };
-
     return wrap;
   }
 
@@ -337,12 +328,13 @@
     const wrap = document.createElement('div');
     wrap.className = 'ud-adapted-block';
     wrap.setAttribute('data-ud-adapted', mode);
+    wrap.setAttribute('contenteditable', 'false');
     wrap.style.cssText =
       'margin:18px 0 8px;padding:16px;background:' + bgColor + ';' +
       'border:1.5px dashed ' + borderColor + ';border-radius:10px';
 
     wrap.innerHTML =
-      '<div contenteditable="false" style="display:flex;justify-content:space-between;' +
+      '<div style="display:flex;justify-content:space-between;' +
       'align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid ' +
       borderColor + '">' +
       '<strong style="color:#1a2744;font-size:13px">' + titleIcon + ' ' + titleText + '</strong>' +
@@ -351,15 +343,7 @@
       'padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600">' +
       '🗑 Esborrar</button>' +
       '</div>' +
-      '<div class="ud-adapted-content">' + html + '</div>';
-
-    wrap.querySelector('.ud-adapted-del').onclick = function (e) {
-      e.stopPropagation();
-      if (confirm('Esborrar aquesta adaptació?')) {
-        wrap.remove();
-        editor.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    };
+      '<div class="ud-adapted-content" contenteditable="true">' + html + '</div>';
 
     editor.appendChild(wrap);
     setTimeout(function () {
@@ -404,6 +388,42 @@
     };
   }
 
+  // ── EVENT DELEGATION GLOBAL PER ALS BOTONS D'ESBORRAR ────────────
+  // Captura clics a nivell de document perquè funcione encara que React
+  // torne a renderitzar i els onclick directes es perden.
+
+  function setupGlobalClickHandler() {
+    document.addEventListener('click', function (e) {
+      // Botó d'esborrar adaptació
+      const adaptedDel = e.target.closest('.ud-adapted-del');
+      if (adaptedDel) {
+        e.preventDefault();
+        e.stopPropagation();
+        const wrap = adaptedDel.closest('.ud-adapted-block');
+        if (wrap && confirm('Esborrar aquesta adaptació?')) {
+          const editor = wrap.closest('.ud-editor');
+          wrap.remove();
+          if (editor) editor.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        return;
+      }
+
+      // Botó d'esborrar àudio
+      const audioDel = e.target.closest('.ud-audio-del');
+      if (audioDel) {
+        e.preventDefault();
+        e.stopPropagation();
+        const wrap = audioDel.closest('.ud-audio-wrap');
+        if (wrap && confirm('Esborrar aquest àudio?')) {
+          const editor = wrap.closest('.ud-editor');
+          wrap.remove();
+          if (editor) editor.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        return;
+      }
+    }, true); // useCapture: true → s'executa abans que altres handlers
+  }
+
   // ── INICIALITZACIÓ I OBSERVACIÓ DEL DOM ──────────────────────────
 
   function processNewElements() {
@@ -412,6 +432,7 @@
   }
 
   function init() {
+    setupGlobalClickHandler();
     processNewElements();
 
     let pending = false;
