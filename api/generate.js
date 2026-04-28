@@ -3,9 +3,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Mètode no permès" });
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "GROQ_API_KEY no configurada." });
+    return res.status(500).json({ error: "ANTHROPIC_API_KEY no configurada." });
   }
 
   try {
@@ -19,14 +19,15 @@ export default async function handler(req, res) {
       ? incoming.messages
       : [{ role: "user", content: incoming.prompt || "" }];
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "claude-sonnet-4-20250514",
         max_tokens: maxTokens,
         messages,
       }),
@@ -34,10 +35,10 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     if (!response.ok) {
-      return res.status(response.status).json({ error: data?.error?.message || "Error Groq" });
+      return res.status(response.status).json({ error: data?.error?.message || "Error Claude" });
     }
 
-    const text = data.choices?.[0]?.message?.content || "";
+    const text = data.content?.[0]?.text || "";
     return res.status(200).json({ text });
 
   } catch (err) {
