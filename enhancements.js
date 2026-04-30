@@ -276,461 +276,360 @@
   // ══════════════════════════════════════════════════════════════════
   // 3. PARTITURA
   // ══════════════════════════════════════════════════════════════════
-
-  // Plantilla: Do Major, 2/4, línia melòdica única
+  // Plantilla: Do Major, 2/4
   var SCORE_TEMPLATE = 'C4/q D4/q | E4/q F4/q | G4/h | C5/h';
 
-  // Carrega abcjs per a la renderització
   function loadAbcjs(cb) {
     if (window.ABCJS) { cb(); return; }
     var s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/abcjs@6.4.0/dist/abcjs-basic-min.js';
     s.onload = function () { cb(); };
-    s.onerror = function () { cb(new Error('No s\'ha pogut carregar abcjs')); };
+    s.onerror = function () { cb(new Error('Error carregant abcjs')); };
     document.head.appendChild(s);
   }
 
-  // ── Conversió de notes ────────────────────────────────────────────
-
-  var NOTE_SEMI = { 'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11 };
-
+  var NOTE_SEMI = { 'C':0,'D':2,'E':4,'F':5,'G':7,'A':9,'B':11 };
   function noteToMidi(name, octave) {
     var base = NOTE_SEMI[name[0]] || 0;
-    var acc = name.length > 1 ? (name[1] === '#' ? 1 : -1) : 0;
-    return (octave + 1) * 12 + base + acc;
+    var acc = name.length>1 ? (name[1]==='#'?1:-1) : 0;
+    return (octave+1)*12 + base + acc;
   }
+  function midiToFreq(midi) { return 440*Math.pow(2,(midi-69)/12); }
 
-  function midiToFreq(midi) {
-    return 440 * Math.pow(2, (midi - 69) / 12);
-  }
+  var DUR_BEATS = {'w':4,'h':2,'q':1,'8':0.5,'16':0.25,'w.':6,'h.':3,'q.':1.5,'8.':0.75,'16.':0.375};
+  var DUR_ABC   = {'w':'16','h':'8','q':'4','8':'2','16':'1','w.':'24','h.':'12','q.':'6','8.':'3','16.':'3/2'};
 
-  // Durades en beats (negra = 1 beat)
-  var DUR_BEATS = {
-    'w': 4, 'h': 2, 'q': 1, '8': 0.5, '16': 0.25,
-    'w.': 6, 'h.': 3, 'q.': 1.5, '8.': 0.75, '16.': 0.375
-  };
-
-  // Durades en ABC (L:1/16)
-  var DUR_ABC = {
-    'w': '16', 'h': '8', 'q': '4', '8': '2', '16': '1',
-    'w.': '24', 'h.': '12', 'q.': '6', '8.': '3', '16.': '3/2'
-  };
-
-  // Analitza el format de l'usuari: "C4/q D4/q | E4/h"
   function parseScoreInput(input) {
-    var bars = input.split('|').map(function (b) { return b.trim(); }).filter(Boolean);
-    var notes = [];
-    var barEnds = [];
-
-    bars.forEach(function (bar) {
-      // Captura nota normal o silenci
+    var bars = input.split('|').map(function(b){return b.trim();}).filter(Boolean);
+    var notes = [], barEnds = [];
+    bars.forEach(function(bar) {
       var re = /([A-G][#b]?)(\d)\/(w\.|h\.|q\.|8\.|16\.|w|h|q|8|16)|[Rr]\/(w\.|h\.|q\.|8\.|16\.|w|h|q|8|16)/g;
       var m;
-      while ((m = re.exec(bar)) !== null) {
+      while ((m=re.exec(bar))!==null) {
         if (/^[Rr]/.test(m[0])) {
-          // Silenci
-          notes.push({ rest: true, dur: m[0].split('/')[1] });
+          notes.push({rest:true, dur:m[0].split('/')[1]});
         } else {
-          var name = m[1];
-          var octave = parseInt(m[2], 10);
-          var dur = m[3];
-          notes.push({ name: name, octave: octave, dur: dur, midi: noteToMidi(name, octave) });
+          notes.push({name:m[1], octave:parseInt(m[2],10), dur:m[3], midi:noteToMidi(m[1],parseInt(m[2],10))});
         }
       }
       barEnds.push(notes.length);
     });
-
-    return { notes: notes, barEnds: barEnds };
+    return {notes:notes, barEnds:barEnds};
   }
 
-  // Converteix una nota al nom ABC
-  // ABC (clau de sol): C3=C D3=D ... B3=B / C4=c D4=d ... / C5=c' ...
   function noteToAbcName(name, octave) {
-    var acc = name.length > 1 ? (name[1] === '#' ? '^' : '_') : '';
+    var acc = name.length>1?(name[1]==='#'?'^':'_'):'';
     var L = name[0];
-    if (octave <= 2) {
-      return acc + L.toUpperCase() + new Array(3 - Math.max(octave, -1) + 1).join(',');
-    }
-    if (octave === 3) return acc + L.toUpperCase();
-    if (octave === 4) return acc + L.toLowerCase();
-    // octave >= 5
-    return acc + L.toLowerCase() + new Array(octave - 4 + 1).join("'");
+    if (octave<=2) return acc+L.toUpperCase()+new Array(Math.max(0,3-octave)+1).join(',');
+    if (octave===3) return acc+L.toUpperCase();
+    if (octave===4) return acc+L.toLowerCase();
+    return acc+L.toLowerCase()+new Array(octave-4+1).join("'");
   }
 
-  // Construeix el string ABC complet
   function buildAbcString(parsed, ts) {
-    ts = ts || '2/4';
-    var s = '';
-    parsed.notes.forEach(function (note, i) {
-      var d = DUR_ABC[note.dur] || '4';
-      if (note.rest) {
-        s += 'z' + d + ' ';
-      } else {
-        s += noteToAbcName(note.name, note.octave) + d + ' ';
-      }
-      if (parsed.barEnds.indexOf(i + 1) !== -1 && i < parsed.notes.length - 1) {
-        s += '| ';
-      }
+    ts = ts||'2/4';
+    var s='';
+    parsed.notes.forEach(function(note,i) {
+      var d = DUR_ABC[note.dur]||'4';
+      s += (note.rest?'z':noteToAbcName(note.name,note.octave)) + d + ' ';
+      if (parsed.barEnds.indexOf(i+1)!==-1 && i<parsed.notes.length-1) s += '| ';
     });
-    return 'X:1\nT:\nM:' + ts + '\nL:1/16\nQ:1/4=80\nK:C\n' + s + '|';
+    return 'X:1\nT:\nM:'+ts+'\nL:1/16\nQ:1/4=80\nK:C\n'+s+'|';
   }
 
-  // ── Síntesi Web Audio ─────────────────────────────────────────────
-
-  var _scoreAudioCtx = null;
-  var _scoreOscs = [];
-  var _scorePlaying = false;
-
+  // Web Audio synth
+  var _scoreACtx = null, _scoreOscs = [];
   function getScoreCtx() {
-    if (!_scoreAudioCtx) {
-      _scoreAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    return _scoreAudioCtx;
+    if (!_scoreACtx) _scoreACtx = new (window.AudioContext||window.webkitAudioContext)();
+    return _scoreACtx;
   }
-
   function stopScorePlayback() {
-    _scoreOscs.forEach(function (o) { try { o.stop(); } catch (e) {} });
-    _scoreOscs = [];
-    _scorePlaying = false;
+    _scoreOscs.forEach(function(o){try{o.stop();}catch(e){}});
+    _scoreOscs=[];
   }
-
   function playScoreNotes(parsed, bpm, onEnd) {
     stopScorePlayback();
-    var ctx = getScoreCtx();
-    if (ctx.state === 'suspended') ctx.resume();
-
-    var masterGain = ctx.createGain();
-    masterGain.gain.value = 0.65;
-    masterGain.connect(ctx.destination);
-
-    var spb = 60 / (bpm || 80); // segons per beat (negra)
-    var t = ctx.currentTime + 0.1;
-    var total = 0;
-    _scorePlaying = true;
-
-    parsed.notes.forEach(function (note) {
-      var beats = DUR_BEATS[note.dur] || 1;
-      var dur = beats * spb;
-
+    var ctx=getScoreCtx();
+    if (ctx.state==='suspended') ctx.resume();
+    var mg=ctx.createGain(); mg.gain.value=0.65; mg.connect(ctx.destination);
+    var spb=60/(bpm||80), t=ctx.currentTime+0.1, total=0;
+    parsed.notes.forEach(function(note) {
+      var dur=(DUR_BEATS[note.dur]||1)*spb;
       if (!note.rest) {
-        var osc = ctx.createOscillator();
-        var ng = ctx.createGain();
-        osc.connect(ng);
-        ng.connect(masterGain);
-        osc.type = 'triangle'; // so més càlid que 'sine'
-        osc.frequency.value = midiToFreq(note.midi);
-
-        // Envelope ràpid tipo piano
-        ng.gain.setValueAtTime(0, t);
-        ng.gain.linearRampToValueAtTime(0.5, t + 0.015);
-        ng.gain.exponentialRampToValueAtTime(0.001, t + Math.max(dur * 0.9, 0.06));
-
-        osc.start(t);
-        osc.stop(t + dur + 0.06);
+        var osc=ctx.createOscillator(), ng=ctx.createGain();
+        osc.connect(ng); ng.connect(mg);
+        osc.type='triangle';
+        osc.frequency.value=midiToFreq(note.midi);
+        ng.gain.setValueAtTime(0,t);
+        ng.gain.linearRampToValueAtTime(0.5,t+0.015);
+        ng.gain.exponentialRampToValueAtTime(0.001,t+Math.max(dur*0.9,0.06));
+        osc.start(t); osc.stop(t+dur+0.06);
         _scoreOscs.push(osc);
       }
-      t += dur;
-      total += dur;
+      t+=dur; total+=dur;
     });
-
-    setTimeout(function () {
-      _scorePlaying = false;
-      if (onEnd) onEnd();
-    }, (total + 0.5) * 1000);
+    setTimeout(function(){if(onEnd)onEnd();}, (total+0.5)*1000);
   }
 
-  // ── Modal de l'editor de partitura ───────────────────────────────
+  // ── TOOLBAR FLOTANT (fora del contenteditable) ───────────────────
+  var _floatBar = null, _floatWrap = null, _floatHideTimer = null;
 
+  function ensureFloatBar() {
+    if (_floatBar) return;
+    _floatBar = document.createElement('div');
+    _floatBar.id = 'ud-sc-floatbar';
+    _floatBar.style.cssText =
+      'position:fixed;z-index:99999;display:none;flex-direction:row;gap:2px;' +
+      'background:rgba(26,39,68,0.94);border-radius:8px;padding:4px 5px;' +
+      'box-shadow:0 4px 14px rgba(0,0,0,0.4);pointer-events:auto;';
+
+    var CBTN = 'border:none;border-radius:5px;padding:4px 9px;cursor:pointer;font-size:12px;' +
+      'font-weight:700;font-family:inherit;line-height:1.2;color:white;background:rgba(255,255,255,0.22);';
+    var CDEL = 'border:none;border-radius:5px;padding:4px 9px;cursor:pointer;font-size:12px;' +
+      'font-weight:700;font-family:inherit;line-height:1.2;color:white;background:rgba(193,39,45,0.9);';
+
+    [{a:'up',l:'\u2191',t:'Amunt'},{a:'down',l:'\u2193',t:'Avall'},
+     {a:'smaller',l:'\u2212',t:'Reduir'},{a:'bigger',l:'+',t:'Ampliar'},
+     {a:'left',l:'\u2190',t:'Esquerra'},{a:'center',l:'\u2195',t:'Centrar'},
+     {a:'right',l:'\u2192',t:'Dreta'},{a:'del',l:'\uD83D\uDDD1',t:'Esborrar',del:true}
+    ].forEach(function(d) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = d.l; b.title = d.t;
+      b.setAttribute('data-sc-action', d.a);
+      b.style.cssText = d.del ? CDEL : CBTN;
+      _floatBar.appendChild(b);
+    });
+
+    _floatBar.addEventListener('mouseenter', function(){ clearTimeout(_floatHideTimer); });
+    _floatBar.addEventListener('mouseleave', function(){ _floatHideTimer=setTimeout(hideFloatBar,500); });
+    _floatBar.addEventListener('mousedown', function(ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      var btn = ev.target.closest('[data-sc-action]');
+      if (btn && _floatWrap) handleScoreAction(btn.getAttribute('data-sc-action'), _floatWrap);
+    });
+    document.body.appendChild(_floatBar);
+  }
+
+  function showFloatBar(wrap) {
+    clearTimeout(_floatHideTimer);
+    ensureFloatBar();
+    _floatWrap = wrap;
+    var r = wrap.getBoundingClientRect();
+    _floatBar.style.display = 'flex';
+    _floatBar.style.top  = (r.top  + 6) + 'px';
+    _floatBar.style.left = (r.left + 6) + 'px';
+  }
+
+  function hideFloatBar() {
+    if (_floatBar) _floatBar.style.display = 'none';
+    _floatWrap = null;
+  }
+
+  function handleScoreAction(action, wrap) {
+    var clone = wrap.querySelector('svg');
+    var curSz = clone ? (parseFloat(clone.getAttribute('width')||'80')||80) : 80;
+    function syncEd() {
+      var ed=wrap.parentElement;
+      while(ed && !ed.classList.contains('ud-editor')) ed=ed.parentElement;
+      if(ed) ed.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+    if (action==='del') {
+      hideFloatBar();
+      if (confirm('Esborrar aquesta partitura?')) { wrap.remove(); setTimeout(syncEd,50); }
+      return;
+    }
+    if (!clone) return;
+    if (action==='smaller') {
+      var ns=Math.max(15,curSz-10)+'%';
+      clone.setAttribute('width',ns); clone.style.maxWidth=ns;
+      if (clone.style.float&&clone.style.float!=='none') clone.style.width=ns;
+    }
+    if (action==='bigger') {
+      var nb=Math.min(100,curSz+10)+'%';
+      clone.setAttribute('width',nb); clone.style.maxWidth=nb;
+      if (clone.style.float&&clone.style.float!=='none') clone.style.width=nb;
+    }
+    if (action==='left') {
+      wrap.style.cssText='margin:8px 0;position:relative;display:block;min-height:10px;clear:both;';
+      clone.style.cssText='width:'+curSz+'%;max-width:'+curSz+'%;float:left;margin:0 18px 8px 0;border-radius:4px;';
+      clone.setAttribute('width',curSz+'%');
+    }
+    if (action==='right') {
+      wrap.style.cssText='margin:8px 0;position:relative;display:block;min-height:10px;clear:both;';
+      clone.style.cssText='width:'+curSz+'%;max-width:'+curSz+'%;float:right;margin:0 0 8px 18px;border-radius:4px;';
+      clone.setAttribute('width',curSz+'%');
+    }
+    if (action==='center') {
+      wrap.style.cssText='text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+      clone.style.cssText='max-width:'+curSz+'%;width:'+curSz+'%;display:inline-block;float:none;border-radius:4px;';
+      clone.setAttribute('width',curSz+'%');
+    }
+    if (action==='up') {
+      var prev=wrap.previousElementSibling;
+      while(prev&&!prev.textContent.trim()) prev=prev.previousElementSibling;
+      if(prev&&wrap.parentElement) wrap.parentElement.insertBefore(wrap,prev);
+    }
+    if (action==='down') {
+      var next=wrap.nextElementSibling;
+      while(next&&!next.textContent.trim()) next=next.nextElementSibling;
+      if(next&&next.nextSibling&&wrap.parentElement) { wrap.parentElement.insertBefore(wrap,next.nextSibling); }
+      else if(next&&wrap.parentElement) { wrap.parentElement.appendChild(wrap); }
+    }
+    // Reposiciona la toolbar
+    setTimeout(function(){ if(_floatWrap===wrap) showFloatBar(wrap); syncEd(); }, 60);
+  }
+
+  function attachScoreEvents(wrap) {
+    if (wrap._scoreEventsAdded) return;
+    wrap._scoreEventsAdded = true;
+    wrap.addEventListener('mouseenter', function(){ showFloatBar(wrap); });
+    wrap.addEventListener('mouseleave', function(){ _floatHideTimer=setTimeout(hideFloatBar,500); });
+    wrap.addEventListener('click', function(ev){ ev.stopPropagation(); showFloatBar(wrap); });
+  }
+
+  // ── Modal editor de partitura ─────────────────────────────────────
   function openScoreModal(editor) {
     var overlay = document.createElement('div');
     overlay.style.cssText =
       'position:fixed;inset:0;background:rgba(26,39,68,0.6);z-index:9999;' +
       'display:flex;align-items:center;justify-content:center;font-family:inherit;' +
       'padding:16px;box-sizing:border-box;overflow-y:auto';
-
     var box = document.createElement('div');
     box.style.cssText =
       'background:white;border-radius:16px;padding:24px;width:100%;max-width:820px;' +
       'box-shadow:0 24px 64px rgba(0,0,0,0.3);display:flex;flex-direction:column;gap:14px';
-
     box.innerHTML =
-      // Capçalera
       '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      '<h3 style="margin:0;color:#1e293b;font-size:20px;font-weight:700">🎼 Editor de partitura</h3>' +
-      '<button id="sc-close" type="button" style="padding:8px 14px;border:none;border-radius:8px;' +
-      'background:#1e293b;color:white;font-weight:600;font-family:inherit;cursor:pointer">✕ Tancar</button>' +
+      '<h3 style="margin:0;color:#1e293b;font-size:20px;font-weight:700">\uD83C\uDFBC Editor de partitura</h3>' +
+      '<button id="sc-close" type="button" style="padding:8px 14px;border:none;border-radius:8px;background:#1e293b;color:white;font-weight:600;font-family:inherit;cursor:pointer">\u2715 Tancar</button>' +
       '</div>' +
-
-      // Guia plegable
       '<details style="background:#f8fafc;border-radius:10px;padding:12px;border:1px solid #e2e8f0">' +
-      '<summary style="cursor:pointer;font-weight:600;color:#1e293b;font-size:13px">📖 Guia ràpida de format (clica per obrir)</summary>' +
+      '<summary style="cursor:pointer;font-weight:600;color:#1e293b;font-size:13px">\uD83D\uDCDA Guia rapida de format</summary>' +
       '<div style="margin-top:10px;font-size:12px;color:#334155;line-height:2">' +
-      '<b>Format de cada nota:</b> <code style="background:#e2e8f0;padding:1px 6px;border-radius:4px">NOTA + OCTAVA / DURADA</code>' +
-      '&nbsp;&nbsp;ex: <code style="background:#e2e8f0;padding:1px 6px;border-radius:4px">C4/q</code> = Do central, negra<br>' +
-      '<b>Notes:</b> C=Do · D=Re · E=Mi · F=Fa · G=Sol · A=La · B=Si<br>' +
-      '<b>Octaves:</b> 3 = greu &nbsp;·&nbsp; 4 = central (Do central) &nbsp;·&nbsp; 5 = aguda<br>' +
-      '<b>Alteracions:</b> C#4 = Do♯ &nbsp;·&nbsp; Bb4 = Si♭ &nbsp;·&nbsp; Eb4 = Mi♭ &nbsp;·&nbsp; F#4 = Fa♯<br>' +
-      '<table style="border-collapse:collapse;margin-top:4px">' +
-      '<tr><td style="padding:2px 10px 2px 0"><b>Durades:</b></td>' +
-      '<td style="padding:2px 6px">w = rodona</td><td style="padding:2px 6px">h = blanca</td>' +
-      '<td style="padding:2px 6px">q = negra</td><td style="padding:2px 6px">8 = corxera</td><td style="padding:2px 6px">16 = semicorxera</td></tr>' +
-      '<tr><td style="padding:2px 10px 2px 0"><b>Amb puntet:</b></td>' +
-      '<td style="padding:2px 6px">w. &nbsp; h. &nbsp; q. &nbsp; 8. &nbsp; 16.</td></tr>' +
-      '</table>' +
-      '<b>Silenci:</b> R/q &nbsp; R/h &nbsp; R/w &nbsp; R/8 &nbsp; (mateixa sintaxi que les notes)<br>' +
-      '<b>Separador de compàs:</b> <code style="background:#e2e8f0;padding:1px 6px;border-radius:4px">|</code><br>' +
-      '<b>Exemple:</b> <code style="background:#e2e8f0;padding:1px 6px;border-radius:4px">C4/q D4/q | E4/q F4/q | G4/h | C5/h</code>' +
+      '<b>Format:</b> NOTA+OCTAVA/DURADA &nbsp; ex: <code style="background:#e2e8f0;padding:1px 6px;border-radius:4px">C4/q D4/q</code><br>' +
+      '<b>Notes:</b> C=Do D=Re E=Mi F=Fa G=Sol A=La B=Si<br>' +
+      '<b>Octaves:</b> 3=greu &middot; 4=central &middot; 5=aguda<br>' +
+      '<b>Alteracions:</b> C#4=Do# &middot; Bb4=Sib &middot; Eb4=Mib<br>' +
+      '<b>Durades:</b> w=rodona h=blanca q=negra 8=corxera 16=semicorxera (+ punt: q. h. 8.)<br>' +
+      '<b>Silenci:</b> R/q R/h R/w etc. &nbsp;&nbsp; <b>Compas:</b> separa amb <code style="background:#e2e8f0;padding:1px 6px;border-radius:4px">|</code>' +
       '</div></details>' +
-
-      // Controls: compàs + tempo
       '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">' +
-      '<label style="font-weight:600;color:#1e293b;font-size:13px">Compàs:</label>' +
+      '<label style="font-weight:600;color:#1e293b;font-size:13px">Compas:</label>' +
       '<select id="sc-ts" style="padding:7px 10px;border:1.5px solid #c8d0e8;border-radius:8px;font-family:inherit;font-size:13px">' +
-      '<option value="2/4" selected>2/4</option>' +
-      '<option value="3/4">3/4</option>' +
-      '<option value="4/4">4/4</option>' +
-      '<option value="6/8">6/8</option>' +
-      '</select>' +
+      '<option value="2/4" selected>2/4</option><option value="3/4">3/4</option>' +
+      '<option value="4/4">4/4</option><option value="6/8">6/8</option></select>' +
       '<label style="font-weight:600;color:#1e293b;font-size:13px;margin-left:8px">Tempo:</label>' +
       '<input id="sc-bpm" type="number" value="80" min="40" max="200" ' +
       'style="width:72px;padding:7px 10px;border:1.5px solid #c8d0e8;border-radius:8px;font-family:inherit;font-size:13px"> BPM' +
       '</div>' +
-
-      // Textarea d'entrada
-      '<div>' +
-      '<label style="display:block;margin-bottom:6px;font-weight:600;color:#1e293b;font-size:13px">Seqüència de notes:</label>' +
+      '<div><label style="display:block;margin-bottom:6px;font-weight:600;color:#1e293b;font-size:13px">Sequencia de notes:</label>' +
       '<textarea id="sc-input" rows="3" spellcheck="false" ' +
       'style="width:100%;padding:10px 12px;border:1.5px solid #c8d0e8;border-radius:8px;' +
       'font-size:14px;font-family:monospace;box-sizing:border-box;resize:vertical;line-height:1.7">' +
-      SCORE_TEMPLATE + '</textarea>' +
-      '</div>' +
-
-      // Botons d'acció
+      SCORE_TEMPLATE + '</textarea></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-      '<button id="sc-render" type="button" style="padding:9px 16px;border:none;border-radius:8px;background:#0891b2;color:white;font-weight:600;font-family:inherit;cursor:pointer">🎼 Renderitzar</button>' +
-      '<button id="sc-play" type="button" style="padding:9px 16px;border:1.5px solid #10b981;border-radius:8px;background:white;color:#10b981;font-weight:600;font-family:inherit;cursor:pointer">▶ Reproduir</button>' +
-      '<button id="sc-stop" type="button" style="padding:9px 16px;border:1.5px solid #ef4444;border-radius:8px;background:white;color:#ef4444;font-weight:600;font-family:inherit;cursor:pointer;display:none">⏹ Aturar</button>' +
+      '<button id="sc-render" type="button" style="padding:9px 16px;border:none;border-radius:8px;background:#0891b2;color:white;font-weight:600;font-family:inherit;cursor:pointer">\uD83C\uDFBC Renderitzar</button>' +
+      '<button id="sc-play"   type="button" style="padding:9px 16px;border:1.5px solid #10b981;border-radius:8px;background:white;color:#10b981;font-weight:600;font-family:inherit;cursor:pointer">\u25B6 Reproduir</button>' +
+      '<button id="sc-stop"   type="button" style="padding:9px 16px;border:1.5px solid #ef4444;border-radius:8px;background:white;color:#ef4444;font-weight:600;font-family:inherit;cursor:pointer;display:none">\u23F9 Aturar</button>' +
       '</div>' +
-
-      // Àrea de renderització
       '<div id="sc-area" style="min-height:160px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:12px;overflow-x:auto">' +
-      '<p style="color:#94a3b8;text-align:center;margin:50px 0;font-size:14px">Clica "Renderitzar" per veure la partitura ↑</p>' +
+      '<p style="color:#94a3b8;text-align:center;margin:50px 0;font-size:14px">Clica \"Renderitzar\" per veure la partitura</p>' +
       '</div>' +
-
-      // Error
       '<div id="sc-err" style="display:none;padding:10px;background:#fef2f2;border-radius:8px;color:#c1272d;font-size:13px"></div>' +
-
-      // Botó inserir
       '<div style="display:flex;justify-content:flex-end">' +
       '<button id="sc-insert" type="button" ' +
       'style="padding:9px 18px;border:none;border-radius:8px;background:#1e293b;color:white;font-weight:600;font-family:inherit;cursor:pointer;display:none">' +
-      '✅ Inserir partitura a la sessió</button>' +
-      '</div>';
+      '\u2705 Inserir partitura a la sessio</button></div>';
 
     overlay.appendChild(box);
     document.body.appendChild(overlay);
 
     var parsedScore = null;
-    var btnPlay = box.querySelector('#sc-play');
-    var btnStop = box.querySelector('#sc-stop');
+    var btnPlay   = box.querySelector('#sc-play');
+    var btnStop   = box.querySelector('#sc-stop');
     var btnInsert = box.querySelector('#sc-insert');
-    var errEl = box.querySelector('#sc-err');
-    var area = box.querySelector('#sc-area');
+    var errEl     = box.querySelector('#sc-err');
+    var area      = box.querySelector('#sc-area');
 
-    function showErr(msg) { errEl.textContent = msg; errEl.style.display = msg ? 'block' : 'none'; }
-    function closeModal() { stopScorePlayback(); overlay.remove(); }
+    function showErr(msg){ errEl.textContent=msg; errEl.style.display=msg?'block':'none'; }
+    function closeModal(){ stopScorePlayback(); overlay.remove(); }
 
     box.querySelector('#sc-close').onclick = closeModal;
-    overlay.onclick = function (e) { if (e.target === overlay) closeModal(); };
+    overlay.onclick = function(e){ if(e.target===overlay) closeModal(); };
 
-    // Renderitzar
-    box.querySelector('#sc-render').onclick = function () {
+    box.querySelector('#sc-render').onclick = function() {
       showErr('');
-      loadAbcjs(function (err) {
-        if (err) { showErr('No s\'ha pogut carregar la llibreria de notació musical.'); return; }
+      loadAbcjs(function(err) {
+        if (err) { showErr('No s\'ha pogut carregar la llibreria.'); return; }
         var input = box.querySelector('#sc-input').value.trim();
         if (!input) { showErr('Escriu algunes notes primer.'); return; }
         try {
           parsedScore = parseScoreInput(input);
-          if (!parsedScore.notes.length) {
-            showErr('No s\'han reconegut notes. Comprova el format. Exemple: C4/q D4/q | E4/q F4/q');
-            return;
-          }
+          if (!parsedScore.notes.length) { showErr('No s\'han reconegut notes. Ex: C4/q D4/q | E4/q F4/q'); return; }
           var ts = box.querySelector('#sc-ts').value;
           var abc = buildAbcString(parsedScore, ts);
           window.ABCJS.renderAbc(area, abc, {
-            scale: 1.5,
-            staffwidth: Math.min((area.clientWidth || 700) - 30, 720),
-            add_classes: true
+            scale:1.5, staffwidth:Math.min((area.clientWidth||700)-30,720), add_classes:true
           });
-          btnInsert.style.display = '';
-        } catch (e) {
-          showErr('Error en la renderització: ' + e.message);
-        }
+          btnInsert.style.display='';
+        } catch(e){ showErr('Error: '+e.message); }
       });
     };
 
-    // Reproduir
-    btnPlay.onclick = function () {
-      if (!parsedScore || !parsedScore.notes.length) { showErr('Renderitza la partitura primer.'); return; }
-      btnPlay.style.display = 'none';
-      btnStop.style.display = '';
-      var bpm = parseInt(box.querySelector('#sc-bpm').value, 10) || 80;
-      playScoreNotes(parsedScore, bpm, function () {
-        btnPlay.style.display = '';
-        btnStop.style.display = 'none';
-      });
+    btnPlay.onclick = function() {
+      if (!parsedScore||!parsedScore.notes.length){ showErr('Renderitza primer.'); return; }
+      btnPlay.style.display='none'; btnStop.style.display='';
+      var bpm = parseInt(box.querySelector('#sc-bpm').value,10)||80;
+      playScoreNotes(parsedScore, bpm, function(){ btnPlay.style.display=''; btnStop.style.display='none'; });
     };
+    btnStop.onclick = function(){ stopScorePlayback(); btnPlay.style.display=''; btnStop.style.display='none'; };
 
-    // Aturar
-    btnStop.onclick = function () {
-      stopScorePlayback();
-      btnPlay.style.display = '';
-      btnStop.style.display = 'none';
-    };
-
-    // Inserir partitura a l'editor (controls autònoms, sense interferències)
-    btnInsert.onclick = function () {
+    btnInsert.onclick = function() {
       var svgEl = area.querySelector('svg');
-      if (!svgEl) { showErr('Renderitza la partitura primer.'); return; }
+      if (!svgEl){ showErr('Renderitza primer.'); return; }
 
-      // Wrapper — sense ud-img-wrap-outer per evitar interferències del media-editor.js
+      // Wrap simple sense controls interns (la toolbar es flotant)
       var wrap = document.createElement('div');
       wrap.className = 'ud-score-wrap';
-      wrap.setAttribute('contenteditable', 'false');
-      wrap.setAttribute('data-ud-score', '1');
+      wrap.setAttribute('contenteditable','false');
+      wrap.setAttribute('data-ud-score','1');
       wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
 
-      // Botons de control amb estils 100% inline (autònoms)
-      var CBTN = 'border:none;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:11px;' +
-        'font-weight:700;font-family:inherit;line-height:1.2;color:white;background:rgba(255,255,255,0.2);';
-      var CDEL = 'border:none;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:11px;' +
-        'font-weight:700;font-family:inherit;line-height:1.2;color:white;background:rgba(193,39,45,0.9);';
-
-      var controls = document.createElement('div');
-      controls.setAttribute('contenteditable', 'false');
-      controls.style.cssText =
-        'position:absolute;top:4px;left:4px;z-index:500;display:flex;gap:2px;' +
-        'background:rgba(26,39,68,0.92);border-radius:7px;padding:3px 4px;pointer-events:auto;';
-
-      [
-        { a:'up',      l:'↑', t:'Moure amunt',     d:false },
-        { a:'down',    l:'↓', t:'Moure avall',      d:false },
-        { a:'smaller', l:'−', t:'Fer més menuda',   d:false },
-        { a:'bigger',  l:'+', t:'Fer més gran',      d:false },
-        { a:'left',    l:'←', t:'Alinear esquerra', d:false },
-        { a:'center',  l:'↕', t:'Centrar',          d:false },
-        { a:'right',   l:'→', t:'Alinear dreta',    d:false },
-        { a:'del',     l:'🗑', t:'Esborrar',         d:true  }
-      ].forEach(function(def) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = def.l;
-        b.title = def.t;
-        b.setAttribute('data-sc-action', def.a);
-        b.style.cssText = def.d ? CDEL : CBTN;
-        controls.appendChild(b);
-      });
-
-      // SVG clonat — mida inicial 80%, centrada
       var clone = svgEl.cloneNode(true);
-      clone.setAttribute('width', '80%');
+      clone.setAttribute('width','80%');
       clone.removeAttribute('height');
-      clone.style.cssText = 'max-width:80%;display:inline-block;border-radius:4px;vertical-align:top;';
+      clone.style.cssText = 'max-width:80%;display:inline-block;border-radius:4px;vertical-align:top;cursor:pointer;';
 
-      wrap.appendChild(controls);
+      // Etiqueta d'ajuda visible fins primer hover
+      var hint = document.createElement('div');
+      hint.style.cssText = 'font-size:11px;color:#94a3b8;text-align:center;margin-top:4px;font-style:italic;';
+      hint.textContent = 'Passa el ratolí per sobre per veure els controls';
+
       wrap.appendChild(clone);
+      wrap.appendChild(hint);
+      attachScoreEvents(wrap);
 
-      function syncEd() {
-        var ed = wrap.closest ? wrap.closest('.ud-editor') : null;
-        if (!ed) { ed = wrap.parentElement; while(ed && !ed.classList.contains('ud-editor')) ed = ed.parentElement; }
-        if (ed) ed.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-
-      controls.querySelectorAll('button').forEach(function (btn) {
-        btn.addEventListener('mousedown', function (ev) {
-          ev.preventDefault(); ev.stopPropagation();
-          var action = btn.getAttribute('data-sc-action');
-          var curSz = parseFloat(clone.getAttribute('width') || '80') || 80;
-
-          if (action === 'del') {
-            if (confirm('Esborrar aquesta partitura?')) {
-              var p = document.createElement('p'); p.innerHTML = '<br>';
-              if (wrap.parentElement) { wrap.parentElement.insertBefore(p, wrap.nextSibling); }
-              wrap.remove();
-              setTimeout(syncEd, 50);
-            }
-            return;
-          }
-          if (action === 'smaller') {
-            var ns = Math.max(15, curSz - 10) + '%';
-            clone.setAttribute('width', ns);
-            clone.style.maxWidth = ns;
-            if (clone.style.float && clone.style.float !== '') clone.style.width = ns;
-          }
-          if (action === 'bigger') {
-            var nb = Math.min(100, curSz + 10) + '%';
-            clone.setAttribute('width', nb);
-            clone.style.maxWidth = nb;
-            if (clone.style.float && clone.style.float !== '') clone.style.width = nb;
-          }
-          if (action === 'left') {
-            wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;clear:both;';
-            clone.style.cssText = 'width:' + curSz + '%;max-width:' + curSz + '%;float:left;margin:0 18px 8px 0;border-radius:4px;';
-            clone.setAttribute('width', curSz + '%');
-          }
-          if (action === 'right') {
-            wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;clear:both;';
-            clone.style.cssText = 'width:' + curSz + '%;max-width:' + curSz + '%;float:right;margin:0 0 8px 18px;border-radius:4px;';
-            clone.setAttribute('width', curSz + '%');
-          }
-          if (action === 'center') {
-            wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
-            clone.style.cssText = 'max-width:' + curSz + '%;width:' + curSz + '%;display:inline-block;float:none;border-radius:4px;';
-            clone.setAttribute('width', curSz + '%');
-          }
-          if (action === 'up') {
-            var prev = wrap.previousElementSibling;
-            while (prev && !prev.textContent.trim() && !prev.querySelector('img,iframe,[data-ud-score],[data-ud-audio]')) {
-              prev = prev.previousElementSibling;
-            }
-            if (prev && wrap.parentElement) wrap.parentElement.insertBefore(wrap, prev);
-          }
-          if (action === 'down') {
-            var next = wrap.nextElementSibling;
-            while (next && !next.textContent.trim() && !next.querySelector('img,iframe,[data-ud-score],[data-ud-audio]')) {
-              next = next.nextElementSibling;
-            }
-            if (next && next.nextSibling && wrap.parentElement) {
-              wrap.parentElement.insertBefore(wrap, next.nextSibling);
-            } else if (next && wrap.parentElement) {
-              wrap.parentElement.appendChild(wrap);
-            }
-          }
-          setTimeout(syncEd, 50);
-        });
-      });
+      // Eliminar etiqueta al primer hover
+      wrap.addEventListener('mouseenter', function(){ if(hint.parentElement) hint.remove(); }, {once:true});
 
       insertElementInEditor(editor, wrap);
       closeModal();
-      toast('✓ Partitura inserida');
+      toast('\u2713 Partitura inserida');
     };
   }
 
   function makeScoreButton(toolbar) {
     if (toolbar._scoreBtnAdded) return;
     var editor = toolbar.nextElementSibling;
-    if (!editor || !editor.classList.contains('ud-editor')) return;
+    if (!editor||!editor.classList.contains('ud-editor')) return;
     toolbar._scoreBtnAdded = true;
     var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = '🎼 Partitura';
-    btn.title = 'Inserir un fragment de partitura (amb so)';
-    btn.onclick = function () { openScoreModal(editor); };
+    btn.type='button'; btn.textContent='\uD83C\uDFBC Partitura';
+    btn.title='Inserir un fragment de partitura (amb so)';
+    btn.onclick = function(){ openScoreModal(editor); };
     toolbar.appendChild(btn);
   }
 
-  // ══════════════════════════════════════════════════════════════════
   // 4. ELIMINAR BOTÓ "EXPORTAR A CANVA"
   // ══════════════════════════════════════════════════════════════════
 
@@ -743,15 +642,124 @@
   // EVENT DELEGATION GLOBAL (botons d'esborrar)
   // ══════════════════════════════════════════════════════════════════
 
-  function setupGlobalClickHandler() {
-    document.addEventListener('click', function (e) {
+  // ── Amaga la marca d'aigua de Replit ─────────────────────────────
+  function hideReplitBadge() {
+    // CSS agressiu per a qualsevol element de Replit
+    var style = document.createElement('style');
+    style.textContent =
+      '[class*="replit"],[id*="replit"],a[href*="replit.com"],' +
+      '[data-testid*="replit"]{display:none!important;visibility:hidden!important;}';
+    document.head.appendChild(style);
 
-      // Esborrar adaptació (DUA)
+    // Cerca per contingut de text (per si no te classe identificable)
+    function findAndHide() {
+      document.querySelectorAll('div,a,span,footer,aside,section').forEach(function(el) {
+        try {
+          if (el.offsetParent !== null &&
+              (el.textContent.trim() === 'Made with Replit' ||
+               el.innerHTML.indexOf('replit') !== -1)) {
+            // Busca el contenidor fix mes proper
+            var target = el;
+            for (var i = 0; i < 5; i++) {
+              if (!target.parentElement || target.parentElement === document.body) break;
+              var cs = window.getComputedStyle(target.parentElement);
+              if (cs.position === 'fixed' || cs.position === 'absolute') { target = target.parentElement; break; }
+              target = target.parentElement;
+            }
+            target.style.setProperty('display', 'none', 'important');
+          }
+        } catch(e) {}
+      });
+    }
+
+    findAndHide();
+    setTimeout(findAndHide, 500);
+    setTimeout(findAndHide, 2000);
+    setTimeout(findAndHide, 5000);
+
+    var obs = new MutationObserver(function() { setTimeout(findAndHide, 100); });
+    obs.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function setupGlobalClickHandler() {
+    // useCapture:true garanteix que capturem els events abans que el contenteditable
+    document.addEventListener('mousedown', function (e) {
+
+      // Controls de la partitura (data-sc-action) via delegacio global
+      var scBtn = e.target.closest('[data-sc-action]');
+      if (scBtn) {
+        e.preventDefault(); e.stopPropagation();
+        var action = scBtn.getAttribute('data-sc-action');
+        var wrap = scBtn.closest('.ud-score-wrap');
+        if (!wrap) return;
+        var clone = wrap.querySelector('svg');
+
+        function syncEd() {
+          var ed = wrap.parentElement;
+          while (ed && !ed.classList.contains('ud-editor')) ed = ed.parentElement;
+          if (ed) ed.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        var curSz = clone ? (parseFloat(clone.getAttribute('width') || '80') || 80) : 80;
+
+        if (action === 'del') {
+          if (confirm('Esborrar aquesta partitura?')) {
+            var p = document.createElement('p'); p.innerHTML = '<br>';
+            if (wrap.parentElement) wrap.parentElement.insertBefore(p, wrap.nextSibling);
+            wrap.remove(); setTimeout(syncEd, 50);
+          }
+          return;
+        }
+        if (!clone) return;
+        if (action === 'smaller') {
+          var ns = Math.max(15, curSz - 10) + '%';
+          clone.setAttribute('width', ns); clone.style.maxWidth = ns;
+          if (clone.style.float && clone.style.float !== 'none') clone.style.width = ns;
+        }
+        if (action === 'bigger') {
+          var nb = Math.min(100, curSz + 10) + '%';
+          clone.setAttribute('width', nb); clone.style.maxWidth = nb;
+          if (clone.style.float && clone.style.float !== 'none') clone.style.width = nb;
+        }
+        if (action === 'left') {
+          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;clear:both;';
+          clone.style.cssText = 'width:' + curSz + '%;max-width:' + curSz + '%;float:left;margin:0 18px 8px 0;border-radius:4px;';
+          clone.setAttribute('width', curSz + '%');
+        }
+        if (action === 'right') {
+          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;clear:both;';
+          clone.style.cssText = 'width:' + curSz + '%;max-width:' + curSz + '%;float:right;margin:0 0 8px 18px;border-radius:4px;';
+          clone.setAttribute('width', curSz + '%');
+        }
+        if (action === 'center') {
+          wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+          clone.style.cssText = 'max-width:' + curSz + '%;width:' + curSz + '%;display:inline-block;float:none;border-radius:4px;';
+          clone.setAttribute('width', curSz + '%');
+        }
+        if (action === 'up') {
+          var prev = wrap.previousElementSibling;
+          while (prev && !prev.textContent.trim()) prev = prev.previousElementSibling;
+          if (prev && wrap.parentElement) wrap.parentElement.insertBefore(wrap, prev);
+        }
+        if (action === 'down') {
+          var next = wrap.nextElementSibling;
+          while (next && !next.textContent.trim()) next = next.nextElementSibling;
+          if (next && next.nextSibling && wrap.parentElement) {
+            wrap.parentElement.insertBefore(wrap, next.nextSibling);
+          } else if (next && wrap.parentElement) {
+            wrap.parentElement.appendChild(wrap);
+          }
+        }
+        setTimeout(syncEd, 50);
+        return;
+      }
+
+      // Esborrar adaptacio DUA
       var adaptedDel = e.target.closest('.ud-adapted-del');
       if (adaptedDel) {
         e.preventDefault(); e.stopPropagation();
         var wrapA = adaptedDel.closest('.ud-adapted-block');
-        if (wrapA && confirm('Esborrar aquesta adaptació?')) {
+        if (wrapA && confirm('Esborrar aquesta adaptacio?')) {
           var edA = wrapA.closest('.ud-editor');
           wrapA.remove();
           if (edA) edA.dispatchEvent(new Event('input', { bubbles: true }));
@@ -759,12 +767,12 @@
         return;
       }
 
-      // Esborrar àudio
+      // Esborrar audio
       var audioDel = e.target.closest('.ud-audio-del');
       if (audioDel) {
         e.preventDefault(); e.stopPropagation();
         var wrapAu = audioDel.closest('.ud-audio-wrap');
-        if (wrapAu && confirm('Esborrar aquest àudio?')) {
+        if (wrapAu && confirm('Esborrar aquest audio?')) {
           var edAu = wrapAu.closest('.ud-editor');
           wrapAu.remove();
           if (edAu) edAu.dispatchEvent(new Event('input', { bubbles: true }));
@@ -772,22 +780,8 @@
         return;
       }
 
-      // Esborrar partitura
-      var scoreDel = e.target.closest('.ud-score-del');
-      if (scoreDel) {
-        e.preventDefault(); e.stopPropagation();
-        var wrapSc = scoreDel.closest('.ud-score-wrap');
-        if (wrapSc && confirm('Esborrar aquesta partitura?')) {
-          var edSc = wrapSc.closest('.ud-editor');
-          wrapSc.remove();
-          if (edSc) edSc.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        return;
-      }
-
-    }, true); // useCapture = true → s'executa abans que altres handlers
+    }, true);
   }
-
   // ══════════════════════════════════════════════════════════════════
   // INICIALITZACIÓ I OBSERVACIÓ DEL DOM
   // ══════════════════════════════════════════════════════════════════
@@ -796,10 +790,12 @@
     document.querySelectorAll('.ud-toolbar').forEach(makeAudioButton);
     document.querySelectorAll('.ud-toolbar').forEach(makeScoreButton);
     document.querySelectorAll('.session-card').forEach(addAdaptButtons);
+    document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     hideCanvaButton();
   }
 
   function init() {
+    hideReplitBadge();
     setupGlobalClickHandler();
     processNewElements();
 
