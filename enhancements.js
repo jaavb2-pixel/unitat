@@ -589,37 +589,125 @@
       btnStop.style.display = 'none';
     };
 
-    // Inserir partitura a l'editor
+    // Inserir partitura a l'editor (amb controls d'alineació i mida)
     btnInsert.onclick = function () {
       var svgEl = area.querySelector('svg');
       if (!svgEl) { showErr('Renderitza la partitura primer.'); return; }
 
+      // Wrapper exterior — mateix sistema que les imatges
       var wrap = document.createElement('div');
-      wrap.className = 'ud-score-wrap';
+      wrap.className = 'ud-img-wrap-outer ud-score-wrap';
       wrap.setAttribute('contenteditable', 'false');
       wrap.setAttribute('data-ud-score', '1');
-      wrap.style.cssText =
-        'margin:14px 0;padding:12px;background:#f8fafc;border:1px solid #e4e8f0;' +
-        'border-radius:10px;position:relative;overflow:hidden';
+      wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
 
+      // Barra de controls (mateixa classe que les imatges per heretar l'estil)
+      var controls = document.createElement('div');
+      controls.className = 'ud-img-controls';
+      controls.innerHTML =
+        '<button class="ud-img-ctrl-btn" data-sc-action="up"    title="Pujar">↑</button>' +
+        '<button class="ud-img-ctrl-btn" data-sc-action="down"  title="Baixar">↓</button>' +
+        '<button class="ud-img-ctrl-btn" data-sc-action="smaller" title="Reduir">−</button>' +
+        '<button class="ud-img-ctrl-btn" data-sc-action="bigger"  title="Ampliar">+</button>' +
+        '<button class="ud-img-ctrl-btn" data-sc-action="left"   title="Esquerra">←</button>' +
+        '<button class="ud-img-ctrl-btn" data-sc-action="center" title="Centre">↕</button>' +
+        '<button class="ud-img-ctrl-btn" data-sc-action="right"  title="Dreta">→</button>' +
+        '<button class="ud-img-ctrl-btn ud-img-del" data-sc-action="del" title="Esborrar">🗑</button>';
+
+      // SVG de la partitura
       var clone = svgEl.cloneNode(true);
-      clone.setAttribute('width', '100%');
+      clone.setAttribute('width', '80%');
       clone.removeAttribute('height');
-      clone.style.display = 'block';
-      clone.style.maxWidth = '100%';
+      clone.style.cssText = 'max-width:80%;display:inline-block;border-radius:8px;border:1px solid #e4e8f0;';
 
-      var del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'ud-score-del';
-      del.textContent = '🗑';
-      del.title = 'Esborrar partitura';
-      del.style.cssText =
-        'position:absolute;top:6px;right:6px;background:rgba(193,39,45,0.9);color:white;' +
-        'border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;' +
-        'font-family:inherit;font-weight:600';
-
+      wrap.appendChild(controls);
       wrap.appendChild(clone);
-      wrap.appendChild(del);
+
+      // Funció de sincronització (notifica l'editor del canvi)
+      function syncEditor() {
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // Gestió dels botons de control
+      controls.querySelectorAll('.ud-img-ctrl-btn').forEach(function (btn) {
+        btn.addEventListener('mousedown', function (ev) {
+          ev.preventDefault(); ev.stopPropagation();
+          var action = btn.getAttribute('data-sc-action');
+          // Mida actual (% del contenidor)
+          var curSz = parseFloat(clone.getAttribute('width') || clone.style.maxWidth || '80') || 80;
+
+          if (action === 'del') {
+            if (confirm('Esborrar aquesta partitura?')) {
+              var t = wrap;
+              while (t && t.parentElement && t.parentElement !== editor) t = t.parentElement;
+              var p = document.createElement('p'); p.innerHTML = '<br>';
+              if (t && t !== editor) { t.after(p); t.remove(); } else { wrap.remove(); }
+              setTimeout(syncEditor, 50);
+            }
+            return;
+          }
+
+          if (action === 'smaller') {
+            var ns = Math.max(10, curSz - 10) + '%';
+            clone.setAttribute('width', ns);
+            clone.style.maxWidth = ns;
+            if (clone.style.float) clone.style.width = ns;
+          }
+          if (action === 'bigger') {
+            var nb = Math.min(100, curSz + 10) + '%';
+            clone.setAttribute('width', nb);
+            clone.style.maxWidth = nb;
+            if (clone.style.float) clone.style.width = nb;
+          }
+
+          if (action === 'left') {
+            wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+            clone.style.cssText = 'width:' + curSz + '%;float:left;margin:0 18px 8px 0;' +
+              'border-radius:8px;border:1px solid #e4e8f0;';
+            clone.setAttribute('width', curSz + '%');
+          }
+          if (action === 'right') {
+            wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;';
+            clone.style.cssText = 'width:' + curSz + '%;float:right;margin:0 0 8px 18px;' +
+              'border-radius:8px;border:1px solid #e4e8f0;';
+            clone.setAttribute('width', curSz + '%');
+          }
+          if (action === 'center') {
+            wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
+            clone.style.cssText = 'max-width:' + curSz + '%;display:inline-block;float:none;' +
+              'border-radius:8px;border:1px solid #e4e8f0;';
+            clone.setAttribute('width', curSz + '%');
+          }
+
+          if (action === 'up') {
+            var tU = wrap;
+            while (tU && tU.parentElement && tU.parentElement !== editor) tU = tU.parentElement;
+            if (!tU || tU === editor) { setTimeout(syncEditor, 50); return; }
+            var prev = tU.previousElementSibling;
+            while (prev && !prev.textContent.trim() && !prev.querySelector('img,iframe,[data-ud-vid],[data-ud-img],[data-ud-score]')) {
+              prev = prev.previousElementSibling;
+            }
+            if (prev) tU.parentElement.insertBefore(tU, prev);
+          }
+          if (action === 'down') {
+            var tD = wrap;
+            while (tD && tD.parentElement && tD.parentElement !== editor) tD = tD.parentElement;
+            if (!tD || tD === editor) { setTimeout(syncEditor, 50); return; }
+            var next = tD.nextElementSibling;
+            while (next && !next.textContent.trim() && !next.querySelector('img,iframe,[data-ud-vid],[data-ud-img],[data-ud-score]')) {
+              next = next.nextElementSibling;
+            }
+            if (next && next.nextElementSibling) {
+              tD.parentElement.insertBefore(tD, next.nextElementSibling);
+            } else if (next) {
+              tD.parentElement.appendChild(tD);
+            }
+          }
+
+          setTimeout(syncEditor, 50);
+        });
+      });
+
       insertElementInEditor(editor, wrap);
       closeModal();
       toast('✓ Partitura inserida');
