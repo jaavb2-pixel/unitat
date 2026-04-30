@@ -372,26 +372,26 @@
   }
 
   // ── TOOLBAR FLOTANT (fora del contenteditable) ───────────────────
-  var _floatBar = null, _floatWrap = null, _floatHideTimer = null;
+  var _floatBar = null, _floatWrap = null;
 
   function ensureFloatBar() {
     if (_floatBar) return;
     _floatBar = document.createElement('div');
     _floatBar.id = 'ud-sc-floatbar';
     _floatBar.style.cssText =
-      'position:fixed;z-index:99999;display:none;flex-direction:row;gap:2px;' +
-      'background:rgba(26,39,68,0.94);border-radius:8px;padding:4px 5px;' +
-      'box-shadow:0 4px 14px rgba(0,0,0,0.4);pointer-events:auto;';
+      'position:fixed;z-index:99999;display:none;flex-direction:row;gap:3px;' +
+      'background:rgba(26,39,68,0.96);border-radius:8px;padding:5px 6px;' +
+      'box-shadow:0 4px 16px rgba(0,0,0,0.45);pointer-events:auto;user-select:none;';
 
-    var CBTN = 'border:none;border-radius:5px;padding:4px 9px;cursor:pointer;font-size:12px;' +
+    var CBTN = 'border:none;border-radius:5px;padding:5px 10px;cursor:pointer;font-size:13px;' +
       'font-weight:700;font-family:inherit;line-height:1.2;color:white;background:rgba(255,255,255,0.22);';
-    var CDEL = 'border:none;border-radius:5px;padding:4px 9px;cursor:pointer;font-size:12px;' +
+    var CDEL = 'border:none;border-radius:5px;padding:5px 10px;cursor:pointer;font-size:13px;' +
       'font-weight:700;font-family:inherit;line-height:1.2;color:white;background:rgba(193,39,45,0.9);';
 
-    [{a:'up',l:'\u2191',t:'Amunt'},{a:'down',l:'\u2193',t:'Avall'},
-     {a:'smaller',l:'\u2212',t:'Reduir'},{a:'bigger',l:'+',t:'Ampliar'},
-     {a:'left',l:'\u2190',t:'Esquerra'},{a:'center',l:'\u2195',t:'Centrar'},
-     {a:'right',l:'\u2192',t:'Dreta'},{a:'del',l:'\uD83D\uDDD1',t:'Esborrar',del:true}
+    [{a:'up',l:'↑',t:'Amunt'},{a:'down',l:'↓',t:'Avall'},
+     {a:'smaller',l:'−',t:'Reduir'},{a:'bigger',l:'+',t:'Ampliar'},
+     {a:'left',l:'←',t:'Esquerra'},{a:'center',l:'↕',t:'Centrar'},
+     {a:'right',l:'→',t:'Dreta'},{a:'del',l:'🗑',t:'Esborrar',del:true}
     ].forEach(function(d) {
       var b = document.createElement('button');
       b.type = 'button'; b.textContent = d.l; b.title = d.t;
@@ -400,18 +400,25 @@
       _floatBar.appendChild(b);
     });
 
-    _floatBar.addEventListener('mouseenter', function(){ clearTimeout(_floatHideTimer); });
-    _floatBar.addEventListener('mouseleave', function(){ _floatHideTimer=setTimeout(hideFloatBar,500); });
-    _floatBar.addEventListener('mousedown', function(ev) {
+    // Usar CLICK (no mousedown) — molt mes fiable per a botons fixos sobre contenteditable
+    _floatBar.addEventListener('click', function(ev) {
       ev.preventDefault(); ev.stopPropagation();
       var btn = ev.target.closest('[data-sc-action]');
       if (btn && _floatWrap) handleScoreAction(btn.getAttribute('data-sc-action'), _floatWrap);
     });
+
+    // Amagar en clicar fora (no en mouseleave)
+    document.addEventListener('click', function(ev) {
+      if (!_floatBar || _floatBar.style.display === 'none') return;
+      var onBar  = ev.target.closest('#ud-sc-floatbar');
+      var onWrap = ev.target.closest('.ud-score-wrap');
+      if (!onBar && !onWrap) hideFloatBar();
+    }, true);
+
     document.body.appendChild(_floatBar);
   }
 
   function showFloatBar(wrap) {
-    clearTimeout(_floatHideTimer);
     ensureFloatBar();
     _floatWrap = wrap;
     var r = wrap.getBoundingClientRect();
@@ -482,8 +489,8 @@
   function attachScoreEvents(wrap) {
     if (wrap._scoreEventsAdded) return;
     wrap._scoreEventsAdded = true;
+    // Mostrar toolbar en hover i en click; s'amaga en clicar fora (ges a ensureFloatBar)
     wrap.addEventListener('mouseenter', function(){ showFloatBar(wrap); });
-    wrap.addEventListener('mouseleave', function(){ _floatHideTimer=setTimeout(hideFloatBar,500); });
     wrap.addEventListener('click', function(ev){ ev.stopPropagation(); showFloatBar(wrap); });
   }
 
