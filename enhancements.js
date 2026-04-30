@@ -689,77 +689,10 @@
   }
 
   function setupGlobalClickHandler() {
-    // useCapture:true garanteix que capturem els events abans que el contenteditable
+    // useCapture:true garanteix que capturem els events de mousedown antes que el contenteditable
+    // NOTA: els botons [data-sc-action] de la toolbar flotant es gestionen amb click,
+    //       NO aqui, perque preventDefault en mousedown bloquejaria el click posterior.
     document.addEventListener('mousedown', function (e) {
-
-      // Controls de la partitura (data-sc-action) via delegacio global
-      var scBtn = e.target.closest('[data-sc-action]');
-      if (scBtn) {
-        e.preventDefault(); e.stopPropagation();
-        var action = scBtn.getAttribute('data-sc-action');
-        var wrap = scBtn.closest('.ud-score-wrap');
-        if (!wrap) return;
-        var clone = wrap.querySelector('svg');
-
-        function syncEd() {
-          var ed = wrap.parentElement;
-          while (ed && !ed.classList.contains('ud-editor')) ed = ed.parentElement;
-          if (ed) ed.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-
-        var curSz = clone ? (parseFloat(clone.getAttribute('width') || '80') || 80) : 80;
-
-        if (action === 'del') {
-          if (confirm('Esborrar aquesta partitura?')) {
-            var p = document.createElement('p'); p.innerHTML = '<br>';
-            if (wrap.parentElement) wrap.parentElement.insertBefore(p, wrap.nextSibling);
-            wrap.remove(); setTimeout(syncEd, 50);
-          }
-          return;
-        }
-        if (!clone) return;
-        if (action === 'smaller') {
-          var ns = Math.max(15, curSz - 10) + '%';
-          clone.setAttribute('width', ns); clone.style.maxWidth = ns;
-          if (clone.style.float && clone.style.float !== 'none') clone.style.width = ns;
-        }
-        if (action === 'bigger') {
-          var nb = Math.min(100, curSz + 10) + '%';
-          clone.setAttribute('width', nb); clone.style.maxWidth = nb;
-          if (clone.style.float && clone.style.float !== 'none') clone.style.width = nb;
-        }
-        if (action === 'left') {
-          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;clear:both;';
-          clone.style.cssText = 'width:' + curSz + '%;max-width:' + curSz + '%;float:left;margin:0 18px 8px 0;border-radius:4px;';
-          clone.setAttribute('width', curSz + '%');
-        }
-        if (action === 'right') {
-          wrap.style.cssText = 'margin:8px 0;position:relative;display:block;min-height:10px;clear:both;';
-          clone.style.cssText = 'width:' + curSz + '%;max-width:' + curSz + '%;float:right;margin:0 0 8px 18px;border-radius:4px;';
-          clone.setAttribute('width', curSz + '%');
-        }
-        if (action === 'center') {
-          wrap.style.cssText = 'text-align:center;clear:both;margin:14px 0;position:relative;display:block;';
-          clone.style.cssText = 'max-width:' + curSz + '%;width:' + curSz + '%;display:inline-block;float:none;border-radius:4px;';
-          clone.setAttribute('width', curSz + '%');
-        }
-        if (action === 'up') {
-          var prev = wrap.previousElementSibling;
-          while (prev && !prev.textContent.trim()) prev = prev.previousElementSibling;
-          if (prev && wrap.parentElement) wrap.parentElement.insertBefore(wrap, prev);
-        }
-        if (action === 'down') {
-          var next = wrap.nextElementSibling;
-          while (next && !next.textContent.trim()) next = next.nextElementSibling;
-          if (next && next.nextSibling && wrap.parentElement) {
-            wrap.parentElement.insertBefore(wrap, next.nextSibling);
-          } else if (next && wrap.parentElement) {
-            wrap.parentElement.appendChild(wrap);
-          }
-        }
-        setTimeout(syncEd, 50);
-        return;
-      }
 
       // Esborrar adaptacio DUA
       var adaptedDel = e.target.closest('.ud-adapted-del');
