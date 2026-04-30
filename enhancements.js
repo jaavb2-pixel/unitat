@@ -750,8 +750,9 @@
           if (n.nodeType !== 1) continue;
           if ((n.classList && (
             n.classList.contains('ud-toolbar') ||
-            n.classList.contains('session-card')
-          )) || (n.querySelector && n.querySelector('.ud-toolbar,.session-card'))) {
+            n.classList.contains('session-card') ||
+            n.classList.contains('ud-score-wrap')
+          )) || (n.querySelector && n.querySelector('.ud-toolbar,.session-card,.ud-score-wrap'))) {
             needs = true; break;
           }
         }
@@ -764,7 +765,15 @@
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-    console.log('[enhancements.js v4] Àudio · DUA · Partitura · Elimina Canva');
+
+    // Xarxa de seguretat: cada 2s revisem que totes les partitures tinguen events.
+    // Això garanteix el correcte funcionament després de canvis de sessió, recàrregues
+    // de l'estat de React, etc., on el MutationObserver podria no haver actuat.
+    setInterval(function() {
+      document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
+    }, 2000);
+
+    console.log('[enhancements.js v9] Àudio · DUA · Partitura · Elimina Canva');
   }
 
   if (document.readyState === 'loading') {
