@@ -1073,13 +1073,13 @@ ${sessList.map((s,i)=>`
         const floatStyle = isLeft ? `float:left;margin:0 18px 8px 0;` : isRight ? `float:right;margin:0 0 8px 18px;` : `display:inline-block;`;
         const card = document.createElement('div');
         card.style.cssText = isLeft||isRight ? `overflow:visible;margin:8px 0;` : `text-align:center;clear:both;margin:14px 0;`;
-        card.innerHTML = `<a href="${ytUrl}" target="_blank" style="${floatStyle}width:${w};text-decoration:none;">
-          <div style="position:relative;width:100%;padding-bottom:56.25%;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;">
+        card.innerHTML = `<div data-ytplay="${vidId}" style="${floatStyle}width:${w};cursor:pointer;" title="Clica per reproduir el v\u00eddeo">
+          <div class="yt-thumb-box" style="position:relative;width:100%;padding-bottom:56.25%;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;">
             <img src="${thumb}" alt="${capText}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">
-            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"><svg viewBox="0 0 68 48" width="48" height="34"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
+            <div class="yt-play-ico" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"><svg viewBox="0 0 68 48" width="48" height="34"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
           </div>
           ${capText ? `<div style="background:#1a2744;color:white;font-size:12px;padding:5px 10px;text-align:center;border-radius:0 0 8px 8px;">${capText}</div>` : ''}
-        </a>`;
+        </div>`;
         wrap.replaceWith(card);
       });
       return tmp.innerHTML;
@@ -1335,6 +1335,16 @@ function showTab(n){
 document.addEventListener('DOMContentLoaded',()=>{
   const first=document.querySelector('.tab-btn.act');
   if(first) first.style.background=_colors[0];
+});
+// Reproducció de vídeos YouTube dins de la pàgina (clica la miniatura)
+document.addEventListener('click',function(e){
+  var c=e.target.closest('[data-ytplay]');
+  if(!c)return;
+  var id=c.getAttribute('data-ytplay');
+  var box=c.querySelector('.yt-thumb-box');
+  if(!box||box.querySelector('iframe'))return;
+  box.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+  c.style.cursor='default';
 });
 <\/script>
 </body></html>`;
