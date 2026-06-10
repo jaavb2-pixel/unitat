@@ -1122,7 +1122,7 @@ ${sessList.map((s,i)=>`
 </div>` : '';
 
     return `<!DOCTYPE html>
-<html lang="ca"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="ca"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="strict-origin-when-cross-origin">
 <title>${titol||'Unitat Didàctica'}</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800;9..144,900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1343,7 +1343,11 @@ document.addEventListener('click',function(e){
   var id=c.getAttribute('data-ytplay');
   var box=c.querySelector('.yt-thumb-box');
   if(!box||box.querySelector('iframe'))return;
-  box.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+  box.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+  var fb=document.createElement('div');
+  fb.style.cssText='font-size:11px;text-align:center;margin-top:4px';
+  fb.innerHTML='<a href="https://www.youtube.com/watch?v='+id+'" target="_blank" style="color:#888">Si el v\u00eddeo no es veu, clica ac\u00ed per obrir-lo a YouTube</a>';
+  box.after(fb);
   c.style.cursor='default';
 });
 <\/script>
