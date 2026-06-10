@@ -275,6 +275,179 @@
 
   // ══════════════════════════════════════════════════════════════════
   // 3. PARTITURA
+  // 3b. EINES EXTRA PER A L'EDITOR DE TEXT
+  // ══════════════════════════════════════════════════════════════════
+
+  // CSS per a llistes, subtítols i caixes destacades dins de l'editor
+  function injectEditorCSS() {
+    if (document.getElementById('ud-extra-css')) return;
+    var st = document.createElement('style');
+    st.id = 'ud-extra-css';
+    st.textContent =
+      '.ud-editor ul{margin:8px 0;padding-left:26px;list-style:disc}' +
+      '.ud-editor ol{margin:8px 0;padding-left:26px;list-style:decimal}' +
+      '.ud-editor li{margin:4px 0}' +
+      '.ud-editor h3{font-size:17px;font-weight:700;color:#1a2744;margin:16px 0 8px;' +
+      'padding-bottom:3px;border-bottom:2px solid #c8960c}' +
+      '.ud-editor [data-ud-callout]{margin:12px 0;padding:12px 14px;border-radius:8px;line-height:1.5}' +
+      '.ud-editor [data-ud-callout="info"]{background:#e0f2fe;border-left:4px solid #0891b2}' +
+      '.ud-editor [data-ud-callout="warn"]{background:#fef3c7;border-left:4px solid #f59e0b}' +
+      '.ud-editor [data-ud-callout="act"]{background:#dcfce7;border-left:4px solid #10b981}';
+    document.head.appendChild(st);
+  }
+
+  function addExtraToolbarButtons(toolbar) {
+    if (toolbar._extraBtnsAdded) return;
+    var editor = toolbar.nextElementSibling;
+    if (!editor || !editor.classList.contains('ud-editor')) return;
+    toolbar._extraBtnsAdded = true;
+
+    function sync() {
+      setTimeout(function(){ editor.dispatchEvent(new Event('input', { bubbles: true })); }, 50);
+    }
+    function fmt(cmd, val) {
+      editor.focus();
+      document.execCommand(cmd, false, val || null);
+      sync();
+    }
+    function mkBtn(html, title, fn) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.innerHTML = html; b.title = title;
+      b.onclick = fn;
+      return b;
+    }
+    function mkSep() {
+      var s = document.createElement('span');
+      s.style.cssText = 'width:1px;background:#c8d0e8;margin:0 2px;align-self:stretch';
+      return s;
+    }
+
+    // Llistes
+    var bUL = mkBtn('\u2022 Llista', 'Llista de punts', function(){ fmt('insertUnorderedList'); });
+    var bOL = mkBtn('1. Llista', 'Llista numerada', function(){ fmt('insertOrderedList'); });
+
+    // Subtitol (toggle H3 / paragraf)
+    var bH3 = mkBtn('T Subt\u00edtol', 'Convertir en subt\u00edtol (clica de nou per tornar a text normal)', function(){
+      var cur = '';
+      try { cur = document.queryCommandValue('formatBlock'); } catch(e) {}
+      if (/h3/i.test(cur)) fmt('formatBlock', '<p>');
+      else fmt('formatBlock', '<h3>');
+    });
+
+    // Ressaltador groc
+    var bHi = mkBtn('\uD83D\uDD8D Ressaltar', 'Ressaltar en groc (treure-ho amb Netejar format)', function(){
+      try { document.execCommand('styleWithCSS', false, true); } catch(e) {}
+      fmt('hiliteColor', '#fff3a3');
+    });
+
+    // Color de text
+    var colSel = document.createElement('select');
+    colSel.title = 'Color del text';
+    colSel.style.cssText = 'padding:4px 6px;border:1px solid #c8d0e8;border-radius:6px;font-size:12px;background:white;color:#1a2744;cursor:pointer;height:28px';
+    [['Color','__'],['Negre','#1a2744'],['Roig','#c1272d'],['Blau','#0867b2'],['Verd','#0a7d4f'],['Daurat','#c8960c']].forEach(function(p){
+      var o = document.createElement('option');
+      o.value = p[1]; o.textContent = p[0];
+      if (p[1]==='__') o.selected = true;
+      colSel.appendChild(o);
+    });
+    colSel.onchange = function() {
+      if (colSel.value !== '__') {
+        try { document.execCommand('styleWithCSS', false, true); } catch(e) {}
+        fmt('foreColor', colSel.value);
+      }
+      colSel.value = '__';
+    };
+
+    // Caixes destacades
+    var boxSel = document.createElement('select');
+    boxSel.title = 'Inserir una caixa destacada';
+    boxSel.style.cssText = colSel.style.cssText;
+    [['\uD83D\uDCE6 Caixa','__'],['\uD83D\uDCA1 Informaci\u00f3','info'],['\u26A0\uFE0F Important','warn'],['\u270F\uFE0F Activitat','act']].forEach(function(p){
+      var o = document.createElement('option');
+      o.value = p[1]; o.textContent = p[0];
+      if (p[1]==='__') o.selected = true;
+      boxSel.appendChild(o);
+    });
+    boxSel.onchange = function() {
+      var type = boxSel.value;
+      boxSel.value = '__';
+      if (type === '__') return;
+      var labels = { info:'\uD83D\uDCA1 ', warn:'\u26A0\uFE0F ', act:'\u270F\uFE0F ' };
+      var html = '<div data-ud-callout="' + type + '"><p>' + (labels[type]||'') + 'Escriu ac\u00ed el contingut...</p></div><p><br></p>';
+      editor.focus();
+      var sel = window.getSelection();
+      if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+        document.execCommand('insertHTML', false, html);
+      } else {
+        editor.innerHTML += html;
+      }
+      sync();
+    };
+
+    // Imatge per URL
+    var bImgURL = mkBtn('\uD83C\uDF10 Imatge URL', "Inserir imatge des d\u2019una adre\u00e7a web", function(){
+      var url = prompt('Adre\u00e7a (URL) de la imatge:');
+      if (!url) return;
+      url = url.trim();
+      if (url.indexOf('http://') !== 0 && url.indexOf('https://') !== 0) { toast('La URL ha de comen\u00e7ar per http:// o https://', true); return; }
+      editor.focus();
+      var html = '<img src="' + url.replace(/"/g,'&quot;') + '" style="max-width:70%">';
+      var sel = window.getSelection();
+      if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+        document.execCommand('insertHTML', false, html + '<p><br></p>');
+      } else {
+        editor.innerHTML += html + '<p><br></p>';
+      }
+      sync();
+    });
+
+    // Netejar format
+    var bClear = mkBtn('\u232B Netejar', 'Treure tot el format del text seleccionat', function(){
+      fmt('removeFormat');
+      fmt('formatBlock', '<p>');
+    });
+
+    [mkSep(), bUL, bOL, bH3, mkSep(), bHi, colSel, mkSep(), boxSel, bImgURL, mkSep(), bClear].forEach(function(el){
+      toolbar.appendChild(el);
+    });
+  }
+
+  // Arrossegar i deixar anar imatges directament a l'editor
+  function addDragDropSupport(editor) {
+    if (editor._dragDropAdded) return;
+    editor._dragDropAdded = true;
+
+    editor.addEventListener('dragover', function(ev) {
+      if (ev.dataTransfer && Array.prototype.some.call(ev.dataTransfer.items || [], function(it){ return it.kind === 'file'; })) {
+        ev.preventDefault();
+        editor.style.outline = '2px dashed #0891b2';
+        editor.style.outlineOffset = '-2px';
+      }
+    });
+    editor.addEventListener('dragleave', function() {
+      editor.style.outline = '';
+      editor.style.outlineOffset = '';
+    });
+    editor.addEventListener('drop', function(ev) {
+      editor.style.outline = '';
+      editor.style.outlineOffset = '';
+      if (!ev.dataTransfer || !ev.dataTransfer.files || !ev.dataTransfer.files.length) return;
+      var file = ev.dataTransfer.files[0];
+      if (!file.type || file.type.indexOf('image/') !== 0) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var html = '<img src="' + e.target.result + '" style="max-width:70%">';
+        editor.focus();
+        document.execCommand('insertHTML', false, html + '<p><br></p>');
+        setTimeout(function(){ editor.dispatchEvent(new Event('input', { bubbles: true })); }, 80);
+        toast('\u2713 Imatge inserida');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   // ══════════════════════════════════════════════════════════════════
   // Plantilla: Do Major, 2/4
   var SCORE_TEMPLATE = 'C4/q D4/q | E4/q F4/q | G4/h | C5/h';
@@ -729,12 +902,15 @@
   function processNewElements() {
     document.querySelectorAll('.ud-toolbar').forEach(makeAudioButton);
     document.querySelectorAll('.ud-toolbar').forEach(makeScoreButton);
+    document.querySelectorAll('.ud-toolbar').forEach(addExtraToolbarButtons);
     document.querySelectorAll('.session-card').forEach(addAdaptButtons);
     document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
+    document.querySelectorAll('.ud-editor').forEach(addDragDropSupport);
     hideCanvaButton();
   }
 
   function init() {
+    injectEditorCSS();
     hideReplitBadge();
     setupGlobalClickHandler();
     processNewElements();
@@ -773,7 +949,7 @@
       document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     }, 2000);
 
-    console.log('[enhancements.js v9] Àudio · DUA · Partitura · Elimina Canva');
+    console.log('[enhancements.js v11] Àudio · DUA · Partitura · Elimina Canva');
   }
 
   if (document.readyState === 'loading') {
