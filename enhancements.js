@@ -480,6 +480,7 @@
     player.style.cssText = 'position:relative;width:100%;padding-bottom:56.25%;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;background:#000;';
     player.innerHTML =
       '<iframe src="https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0" ' +
+      'referrerpolicy="strict-origin-when-cross-origin" ' +
       'style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" ' +
       'allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>' +
       '<button type="button" data-ud-close-player="1" title="Tancar el reproductor" ' +
