@@ -448,6 +448,91 @@
     });
   }
 
+  // 3c. REPRODUCCIÓ DE VÍDEOS YOUTUBE DINS DE LA PÀGINA
+  // ══════════════════════════════════════════════════════════════════
+  // L'app original obria YouTube en una pestanya nova. Ara el vídeo es
+  // reprodueix incrustat dins de la pàgina en clicar la miniatura.
+
+  function buildVideoThumb(id) {
+    var thumbWrap = document.createElement('div');
+    thumbWrap.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;cursor:pointer;';
+    var img = document.createElement('img');
+    img.src = 'https://img.youtube.com/vi/' + id + '/hqdefault.jpg';
+    img.alt = 'Video YouTube';
+    img.style.cssText = 'width:100%;display:block;';
+    var play = document.createElement('div');
+    play.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;';
+    play.innerHTML = '<svg viewBox="0 0 68 48" width="56" height="40"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C0 13.05 0 24 0 24s0 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C68 34.95 68 24 68 24s0-10.95-1.48-16.26z" fill="rgba(0,0,0,0.7)"/><path d="M45 24 27 14v20" fill="#fff"/></svg>';
+    thumbWrap.appendChild(img);
+    thumbWrap.appendChild(play);
+    return thumbWrap;
+  }
+
+  function swapToInlinePlayer(wrap, box) {
+    var id = wrap.getAttribute('data-ud-vid');
+    if (!id) return;
+    // El primer div fill del box es la miniatura
+    var thumb = box.firstElementChild;
+    if (!thumb) return;
+
+    var player = document.createElement('div');
+    player.setAttribute('data-ud-inline-player', '1');
+    player.style.cssText = 'position:relative;width:100%;padding-bottom:56.25%;border-radius:8px;overflow:hidden;border:1px solid #e4e8f0;background:#000;';
+    player.innerHTML =
+      '<iframe src="https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0" ' +
+      'style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" ' +
+      'allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>' +
+      '<button type="button" data-ud-close-player="1" title="Tancar el reproductor" ' +
+      'style="position:absolute;top:6px;right:6px;z-index:10;background:rgba(0,0,0,0.7);color:white;' +
+      'border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700">\u2715</button>';
+
+    box.replaceChild(player, thumb);
+    wrap._udPlayerActive = true; // marca en memoria (no es serialitza)
+  }
+
+  function restoreVideoThumb(wrap) {
+    var id = wrap.getAttribute('data-ud-vid');
+    var box = wrap.querySelector('.ud-vid-box');
+    if (!id || !box) return;
+    var player = box.querySelector('[data-ud-inline-player]');
+    if (!player) return;
+    box.replaceChild(buildVideoThumb(id), player);
+    wrap._udPlayerActive = false;
+  }
+
+  function setupInlineVideoPlayback() {
+    // Captura el clic ABANS que el listener original (que obria pestanya nova)
+    document.addEventListener('click', function(e) {
+      // Boto de tancar el reproductor
+      var closeBtn = e.target.closest('[data-ud-close-player]');
+      if (closeBtn) {
+        e.preventDefault(); e.stopPropagation();
+        var wrapC = closeBtn.closest('[data-ud-vid]');
+        if (wrapC) restoreVideoThumb(wrapC);
+        return;
+      }
+      // Clic a la miniatura del video
+      var box = e.target.closest('.ud-vid-box');
+      if (!box) return;
+      if (e.target.closest('.ud-img-controls')) return; // no interceptem els controls
+      var wrap = box.closest('[data-ud-vid]');
+      if (!wrap) return;
+      if (box.querySelector('[data-ud-inline-player]')) return; // ja esta reproduint
+      e.preventDefault();
+      e.stopPropagation();
+      swapToInlinePlayer(wrap, box);
+    }, true); // capture phase: intercepta abans del window.open original
+  }
+
+  // Si una sessio guardada conte un reproductor incrustat (amb autoplay),
+  // el restaurem a miniatura per evitar que comence a sonar sol en obrir.
+  function cleanupSavedPlayers() {
+    document.querySelectorAll('[data-ud-vid]').forEach(function(wrap) {
+      if (wrap._udPlayerActive) return; // l'ha obert l'usuari ara mateix
+      if (wrap.querySelector('[data-ud-inline-player]')) restoreVideoThumb(wrap);
+    });
+  }
+
   // ══════════════════════════════════════════════════════════════════
   // Plantilla: Do Major, 2/4
   var SCORE_TEMPLATE = 'C4/q D4/q | E4/q F4/q | G4/h | C5/h';
@@ -906,12 +991,14 @@
     document.querySelectorAll('.session-card').forEach(addAdaptButtons);
     document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     document.querySelectorAll('.ud-editor').forEach(addDragDropSupport);
+    cleanupSavedPlayers();
     hideCanvaButton();
   }
 
   function init() {
     injectEditorCSS();
     hideReplitBadge();
+    setupInlineVideoPlayback();
     setupGlobalClickHandler();
     processNewElements();
 
@@ -949,7 +1036,7 @@
       document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     }, 2000);
 
-    console.log('[enhancements.js v11] Àudio · DUA · Partitura · Elimina Canva');
+    console.log('[enhancements.js v12] Àudio · DUA · Partitura · Elimina Canva');
   }
 
   if (document.readyState === 'loading') {
