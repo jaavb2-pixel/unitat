@@ -534,6 +534,258 @@
     });
   }
 
+  // 3d. MAPA CONCEPTUAL + MENÚ DESPLEGABLE DE LA CAPÇALERA
+  // ══════════════════════════════════════════════════════════════════
+
+  function renderMindMap(conceptes, container) {
+    var W = container.clientWidth || 820;
+    var H = 540;
+    var CX = W/2, CY = H/2;
+    var svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('width', W); svg.setAttribute('height', H);
+    svg.setAttribute('viewBox','0 0 '+W+' '+H);
+    svg.style.cssText = 'display:block;font-family:inherit';
+    var bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('width',W); bg.setAttribute('height',H);
+    bg.setAttribute('fill','#f8fafc'); bg.setAttribute('rx','12');
+    svg.appendChild(bg);
+
+    var colors = ['#0891b2','#7c3aed','#f59e0b','#10b981','#ef4444','#8b5cf6','#06b6d4','#f97316'];
+    var center = conceptes[0];
+    var nodes = conceptes.slice(1);
+    var angleStep = (2*Math.PI)/Math.max(nodes.length,1);
+    var radius = Math.min(W,H)*0.33;
+
+    function addText(g, x, y, label, size, weight, fill, maxChars) {
+      var words = label.split(' ');
+      if (words.length <= 2 || label.length <= maxChars) {
+        var t = document.createElementNS('http://www.w3.org/2000/svg','text');
+        t.setAttribute('x',x); t.setAttribute('y',y+5);
+        t.setAttribute('text-anchor','middle');
+        t.setAttribute('font-size',size); t.setAttribute('font-weight',weight);
+        t.setAttribute('fill',fill);
+        t.textContent = label.length > maxChars+2 ? label.substring(0,maxChars+1)+'\u2026' : label;
+        g.appendChild(t);
+      } else {
+        var mid = Math.ceil(words.length/2);
+        [words.slice(0,mid).join(' '), words.slice(mid).join(' ')].forEach(function(line, li){
+          var t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+          t2.setAttribute('x',x); t2.setAttribute('y', y + (li===0 ? -3 : 13));
+          t2.setAttribute('text-anchor','middle');
+          t2.setAttribute('font-size',size-1); t2.setAttribute('font-weight',weight);
+          t2.setAttribute('fill',fill);
+          t2.textContent = line.length > maxChars ? line.substring(0,maxChars-1)+'\u2026' : line;
+          g.appendChild(t2);
+        });
+      }
+    }
+
+    nodes.forEach(function(node, i) {
+      var angle = i*angleStep - Math.PI/2;
+      var nx = CX + radius*Math.cos(angle);
+      var ny = CY + radius*Math.sin(angle);
+      var col = colors[i % colors.length];
+
+      var line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',CX); line.setAttribute('y1',CY);
+      line.setAttribute('x2',nx); line.setAttribute('y2',ny);
+      line.setAttribute('stroke',col); line.setAttribute('stroke-width','2');
+      line.setAttribute('stroke-opacity','0.5');
+      svg.appendChild(line);
+
+      if (node.fills && node.fills.length) {
+        var subR = 95;
+        var subStep = Math.PI/Math.max(node.fills.length+1,2);
+        var baseA = angle - Math.PI/2 + subStep;
+        node.fills.forEach(function(fill, j){
+          var sa = baseA + j*subStep;
+          var sx = nx + subR*Math.cos(sa);
+          var sy = ny + subR*Math.sin(sa);
+          var sl = document.createElementNS('http://www.w3.org/2000/svg','line');
+          sl.setAttribute('x1',nx); sl.setAttribute('y1',ny);
+          sl.setAttribute('x2',sx); sl.setAttribute('y2',sy);
+          sl.setAttribute('stroke',col); sl.setAttribute('stroke-width','1.5');
+          sl.setAttribute('stroke-opacity','0.35'); sl.setAttribute('stroke-dasharray','4,3');
+          svg.appendChild(sl);
+          var sg = document.createElementNS('http://www.g3.org/2000/svg','g');
+          sg = document.createElementNS('http://www.w3.org/2000/svg','g');
+          var sr = document.createElementNS('http://www.w3.org/2000/svg','rect');
+          sr.setAttribute('x',sx-58); sr.setAttribute('y',sy-16);
+          sr.setAttribute('width',116); sr.setAttribute('height',32);
+          sr.setAttribute('rx',8); sr.setAttribute('fill','white');
+          sr.setAttribute('stroke',col); sr.setAttribute('stroke-width','1');
+          sr.setAttribute('stroke-opacity','0.5');
+          sg.appendChild(sr);
+          var st = document.createElementNS('http://www.w3.org/2000/svg','text');
+          st.setAttribute('x',sx); st.setAttribute('y',sy+4);
+          st.setAttribute('text-anchor','middle');
+          st.setAttribute('font-size','11'); st.setAttribute('fill','#334155');
+          st.textContent = fill.length > 15 ? fill.substring(0,14)+'\u2026' : fill;
+          sg.appendChild(st);
+          svg.appendChild(sg);
+        });
+      }
+
+      var g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      var el = document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+      el.setAttribute('cx',nx); el.setAttribute('cy',ny);
+      el.setAttribute('rx',72); el.setAttribute('ry',30);
+      el.setAttribute('fill',col); el.setAttribute('fill-opacity','0.15');
+      el.setAttribute('stroke',col); el.setAttribute('stroke-width','2');
+      g.appendChild(el);
+      addText(g, nx, ny, node.nom||'', 13, '600', col, 15);
+      svg.appendChild(g);
+    });
+
+    var cg = document.createElementNS('http://www.w3.org/2000/svg','g');
+    var cel = document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+    cel.setAttribute('cx',CX); cel.setAttribute('cy',CY);
+    cel.setAttribute('rx',95); cel.setAttribute('ry',45);
+    cel.setAttribute('fill','#1e293b');
+    cg.appendChild(cel);
+    addText(cg, CX, CY, (center&&center.nom)||'', 15, '700', '#ffffff', 17);
+    svg.appendChild(cg);
+
+    container.innerHTML = '';
+    container.appendChild(svg);
+  }
+
+  function openMindMapModal(conceptes, titol) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(26,39,68,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:20px;box-sizing:border-box';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:white;border-radius:16px;padding:24px;width:100%;max-width:920px;box-shadow:0 24px 64px rgba(0,0,0,0.35);display:flex;flex-direction:column;gap:16px';
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px';
+    header.innerHTML =
+      '<h3 style="margin:0;color:#1e293b;font-size:19px;font-weight:700">\uD83E\uDDE0 Mapa conceptual \u00b7 ' + (titol||'') + '</h3>' +
+      '<div style="display:flex;gap:8px">' +
+      '<button id="ud-map-export" type="button" style="padding:8px 14px;border:1px solid #c8d0e8;border-radius:8px;background:white;color:#1e293b;font-weight:600;font-family:inherit;cursor:pointer;font-size:13px">\uD83D\uDCBE Descarregar SVG</button>' +
+      '<button id="ud-map-close" type="button" style="padding:8px 14px;border:none;border-radius:8px;background:#1e293b;color:white;font-weight:600;font-family:inherit;cursor:pointer;font-size:13px">Tancar</button>' +
+      '</div>';
+    var mapContainer = document.createElement('div');
+    mapContainer.style.cssText = 'width:100%;border-radius:12px;overflow:hidden;min-height:540px';
+    box.appendChild(header); box.appendChild(mapContainer);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    renderMindMap(conceptes, mapContainer);
+    box.querySelector('#ud-map-close').onclick = function(){ overlay.remove(); };
+    overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+    box.querySelector('#ud-map-export').onclick = function(){
+      var svgEl = mapContainer.querySelector('svg');
+      if (!svgEl) return;
+      var svgData = new XMLSerializer().serializeToString(svgEl);
+      var blob = new Blob([svgData], { type:'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = (titol||'mapa_conceptual').replace(/[^\w\u00C0-\u00FF\s\-]/g,'').trim() + '_mapa.svg';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('\u2713 Mapa descarregat!');
+    };
+  }
+
+  async function generateMindMap() {
+    var titolInput = document.querySelector('input[type=text]');
+    var titol = titolInput ? titolInput.value : 'Unitat';
+    var allText = 'Unitat: ' + titol + '\n';
+    document.querySelectorAll('.session-card').forEach(function(card, i) {
+      var nomInput = card.querySelector('.session-header input[type=text]');
+      var nom = nomInput ? nomInput.value : ('Sessi\u00f3 ' + (i+1));
+      var editors = card.querySelectorAll('.ud-editor');
+      var text = editors.length ? editors[0].innerText.trim().substring(0,800) : '';
+      if (text) allText += '\n--- ' + nom + ' ---\n' + text;
+    });
+    if (allText.length < 150) { toast('Cal tindre contingut a les sessions primer.', true); return; }
+
+    toast('\u23F3 Generant el mapa conceptual...');
+    try {
+      var prompt = "Analitza el contingut d'aquesta unitat did\u00e0ctica i genera un mapa conceptual en format JSON.\n\nContingut:\n---\n" +
+        allText.substring(0,4000) +
+        "\n---\n\nRetorna \u00daNICAMENT un array JSON (sense explicacions, sense Markdown):\n" +
+        '[{"nom":"Concepte Central","fills":[]},{"nom":"Tema 1","fills":["subtema","subtema"]},{"nom":"Tema 2","fills":[]}]\n' +
+        "El primer element \u00e9s el concepte central (t\u00edtol resumit). Els altres (entre 4 i 7) s\u00f3n temes principals amb 0-3 subtemes cadascun. Tot en VALENCI\u00c0.";
+      var result = await callAI(prompt, 900);
+      result = result.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/i,'').trim();
+      var conceptes = JSON.parse(result);
+      if (!Array.isArray(conceptes) || conceptes.length < 2) throw new Error('Format inesperat');
+      openMindMapModal(conceptes, titol);
+    } catch(e) {
+      toast('Error generant el mapa: ' + e.message, true);
+    }
+  }
+
+  // ── MENÚ DESPLEGABLE A LA CAPÇALERA ───────────────────────────────
+  function organizeHeader() {
+    var container = document.querySelector('.header-actions');
+    if (!container) return;
+
+    if (!document.getElementById('ud-tools-menu')) {
+      var wrap = document.createElement('div');
+      wrap.id = 'ud-tools-menu';
+      wrap.style.cssText = 'position:relative;display:inline-block';
+
+      var toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'btn btn-sm btn-outline header-btn';
+      toggle.textContent = '\uD83D\uDCE4 Exportar \u25BE';
+      toggle.title = 'Exportacions i eines de la unitat';
+
+      var panel = document.createElement('div');
+      panel.style.cssText = 'position:absolute;top:calc(100% + 6px);right:0;z-index:5000;background:white;' +
+        'border:1px solid #c8d0e8;border-radius:10px;box-shadow:0 10px 30px rgba(26,39,68,0.18);' +
+        'padding:6px;display:none;min-width:230px;flex-direction:column;gap:2px';
+
+      var ITEM = 'display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;' +
+        'border-radius:7px;font-size:13px;font-family:inherit;color:#1a2744;cursor:pointer;font-weight:600';
+
+      function addItem(label, fn) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.style.cssText = ITEM; b.textContent = label;
+        b.onmouseover = function(){ b.style.background = '#f0f4ff'; };
+        b.onmouseout  = function(){ b.style.background = 'none'; };
+        b.onclick = function(e){ e.stopPropagation(); panel.style.display = 'none'; fn(); };
+        panel.appendChild(b);
+      }
+      function addSep() {
+        var s = document.createElement('div');
+        s.style.cssText = 'height:1px;background:#e4e8f0;margin:4px 6px';
+        panel.appendChild(s);
+      }
+      function proxy(id) {
+        return function() {
+          var o = document.getElementById(id);
+          if (o) o.click();
+          else toast('Aquesta funci\u00f3 encara no est\u00e0 disponible', true);
+        };
+      }
+
+      addItem('\uD83C\uDF10 HTML Alumnes', proxy('ud-html-btn'));
+      addItem('\uD83D\uDCD5 PDF Professor', proxy('ud-pdf-prof-btn'));
+      addItem('\uD83E\uDDE0 Mapa Conceptual', generateMindMap);
+      addSep();
+      addItem('\uD83D\uDCE6 Exportar unitats (.json)', proxy('ud-export-btn'));
+      addItem('\uD83D\uDCC2 Importar unitats (.json)', proxy('ud-import-btn'));
+
+      toggle.onclick = function(e) {
+        e.stopPropagation();
+        panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+      };
+      document.addEventListener('click', function() { panel.style.display = 'none'; });
+
+      wrap.appendChild(toggle);
+      wrap.appendChild(panel);
+      container.appendChild(wrap);
+    }
+
+    // Amaguem els botons individuals que ara viuen dins del menú
+    ['ud-html-btn','ud-pdf-prof-btn','ud-export-btn','ud-import-btn'].forEach(function(id) {
+      var b = document.getElementById(id);
+      if (b && b.style.display !== 'none') b.style.display = 'none';
+    });
+  }
+
   // ══════════════════════════════════════════════════════════════════
   // Plantilla: Do Major, 2/4
   var SCORE_TEMPLATE = 'C4/q D4/q | E4/q F4/q | G4/h | C5/h';
@@ -993,6 +1245,7 @@
     document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     document.querySelectorAll('.ud-editor').forEach(addDragDropSupport);
     cleanupSavedPlayers();
+    organizeHeader();
     hideCanvaButton();
   }
 
@@ -1037,7 +1290,7 @@
       document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     }, 2000);
 
-    console.log('[enhancements.js v12] Àudio · DUA · Partitura · Elimina Canva');
+    console.log('[enhancements.js v14] Àudio · DUA · Partitura · Elimina Canva');
   }
 
   if (document.readyState === 'loading') {
