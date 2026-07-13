@@ -762,7 +762,6 @@
       }
 
       addItem('\uD83C\uDF10 HTML Alumnes', proxy('ud-html-btn'));
-      addItem('\uD83D\uDCD5 PDF Professor', proxy('ud-pdf-prof-btn'));
       addItem('\uD83E\uDDE0 Mapa Conceptual', generateMindMap);
       addSep();
       addItem('\uD83D\uDCE6 Exportar unitats (.json)', proxy('ud-export-btn'));
@@ -779,11 +778,16 @@
       container.appendChild(wrap);
     }
 
-    // Amaguem els botons individuals que ara viuen dins del menú
-    ['ud-html-btn','ud-pdf-prof-btn','ud-export-btn','ud-import-btn'].forEach(function(id) {
-      var b = document.getElementById(id);
-      if (b && b.style.display !== 'none') b.style.display = 'none';
-    });
+    // Amaguem els botons que ara viuen dins del menú (el PDF Professor queda VISIBLE)
+    if (document.getElementById('ud-tools-menu')) {
+      ['ud-html-btn','ud-export-btn','ud-import-btn'].forEach(function(id) {
+        var b = document.getElementById(id);
+        if (b && b.style.display !== 'none') b.style.display = 'none';
+      });
+      // Assegurem que el PDF Professor està visible
+      var pdfBtn = document.getElementById('ud-pdf-prof-btn');
+      if (pdfBtn && pdfBtn.style.display === 'none') pdfBtn.style.display = '';
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════
