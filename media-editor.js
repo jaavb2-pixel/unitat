@@ -1145,10 +1145,20 @@ ${sessList.map((s,i)=>`
         ? s.exercicis.split('\n').filter(e=>e.trim()).map((e,ei)=>
             `<div class="ex-row"><div class="ex-n" style="background:${color}">${ei+1}</div><div class="ex-t">${e.replace(/^\d+[\.\)]\s*/,'')}</div></div>`
           ).join('') : '';
+      const quizHTML = s.quiz && s.quiz.length ? `<div class="quiz-box">
+        <div class="quiz-hdr" style="color:${color}">🧩 Comprova el que has aprés</div>
+        ${s.quiz.map((q,qi)=>`<div class="quiz-q" data-correct="${q.correcta}">
+          <div class="quiz-question">${qi+1}. ${q.q}</div>
+          <div class="quiz-opts">${q.opcions.map((op,oi)=>`<button type="button" class="quiz-opt" data-oi="${oi}">${op}</button>`).join('')}</div>
+          <div class="quiz-fb">${q.explicacio||''}</div>
+        </div>`).join('')}
+        <div class="quiz-score"></div>
+      </div>` : '';
       return `<div class="tab-panel" id="tab-${i}" style="display:${i===0?'block':'none'}">
         <div class="sess-body">
           <div class="sess-text">${cHTML}</div>
           ${exHTML?`<div class="exer-box" style="margin-top:26px;background:${light};border-radius:12px;padding:18px 22px;border-left:4px solid ${color}"><div class="exer-hdr" style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:${color};margin-bottom:14px">✏️ Exercicis i activitats</div>${exHTML}</div>`:''}
+          ${quizHTML}
         </div>
       </div>`;
     }).join('');
@@ -1300,7 +1310,41 @@ a[style*="width"] .yt-thumb-wrap,.yt-thumb-wrap{position:relative;overflow:hidde
   a{color:var(--ink)!important;border-bottom:1px solid var(--gold)!important}
   .yt-thumb-wrap{box-shadow:none!important;transform:none!important}
 }
+
+/* ═══ QÜESTIONARI AUTOAVALUABLE ═══ */
+.quiz-box{margin-top:26px;background:#f6f8fc;border:1.5px solid #dfe6f3;border-radius:12px;padding:18px 22px}
+.quiz-hdr{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px}
+.quiz-q{margin:0 0 16px;padding-bottom:14px;border-bottom:1px dashed #dfe6f3}
+.quiz-q:last-of-type{border-bottom:none}
+.quiz-question{font-weight:600;margin-bottom:9px;font-size:15px}
+.quiz-opts{display:grid;gap:6px}
+.quiz-opt{text-align:left;padding:10px 13px;border:1.5px solid #c9d4ea;border-radius:8px;background:white;cursor:pointer;font-family:inherit;font-size:14px;transition:all .15s;color:#1a2744}
+.quiz-opt:hover:not(:disabled){border-color:#1a2744;transform:translateX(2px)}
+.quiz-opt:disabled{cursor:default}
+.quiz-opt.ok{background:#dcfce7;border-color:#10b981;font-weight:700}
+.quiz-opt.ko{background:#fee2e2;border-color:#ef4444;opacity:.9}
+.quiz-fb{display:none;margin-top:9px;font-size:13px;background:#eef6ff;padding:9px 13px;border-radius:8px;color:#1a2744;border-left:3px solid #0d6efd}
+.quiz-score{display:none;margin-top:14px;padding:13px;border-radius:10px;background:#1a2744;color:white;font-weight:700;text-align:center;font-size:15px}
+
+/* ═══ REFRESC VISUAL ═══ */
+#ud-prog{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,#b8860b,#1a2744);width:0%;z-index:999;transition:width .1s ease-out}
+.tab-nav{position:sticky;top:0;z-index:100;background:white;box-shadow:0 2px 12px rgba(0,0,0,.07)}
+.tab-panel{animation:udFade .35s ease}
+@keyframes udFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ═══ MÒBIL ═══ */
+@media(max-width:640px){
+  .cover-title{font-size:26pt!important}
+  .tab-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tab-nav::-webkit-scrollbar{display:none}
+  .tab-btn{padding:10px 12px!important;font-size:13px!important;white-space:nowrap}
+  .sess-body{padding:16px!important}
+  .sa-grid{grid-template-columns:1fr!important}
+  .quiz-box{padding:14px 16px}
+  .cover-meta{flex-wrap:wrap;gap:14px!important}
+}
 </style></head><body>
+<div id="ud-prog"></div>
 
 <section class="cover">
   <div class="cover-inner">
@@ -1398,6 +1442,45 @@ document.addEventListener('click',function(e){
   box.after(fb);
   c.style.cursor='default';
 });
+// ═══ Qüestionari autoavaluable ═══
+document.addEventListener('click',function(e){
+  var opt=e.target.closest('.quiz-opt');
+  if(!opt)return;
+  var q=opt.closest('.quiz-q');
+  if(!q||q.dataset.done)return;
+  q.dataset.done='1';
+  var correct=parseInt(q.getAttribute('data-correct'),10);
+  var chosen=parseInt(opt.getAttribute('data-oi'),10);
+  if(chosen===correct)q.dataset.ok='1';
+  q.querySelectorAll('.quiz-opt').forEach(function(b,i){
+    b.disabled=true;
+    if(i===correct)b.classList.add('ok');
+    else if(i===chosen)b.classList.add('ko');
+  });
+  var fb=q.querySelector('.quiz-fb');
+  if(fb&&fb.textContent.trim())fb.style.display='block';
+  var box=q.closest('.quiz-box');
+  var qs=box.querySelectorAll('.quiz-q');
+  var done=box.querySelectorAll('.quiz-q[data-done]');
+  if(done.length===qs.length){
+    var good=box.querySelectorAll('.quiz-q[data-ok]').length;
+    var sc=box.querySelector('.quiz-score');
+    var pct=good/qs.length;
+    var emo=pct===1?'🏆':pct>=0.75?'🎉':pct>=0.5?'💪':'📚';
+    sc.textContent=emo+' Has encertat '+good+' de '+qs.length+' preguntes'+(pct===1?'! Perfecte!':pct>=0.5?'. Molt bé!':'. Repassa el contingut i torna-ho a provar!');
+    sc.style.display='block';
+  }
+});
+// ═══ Barra de progrés de lectura ═══
+(function(){
+  var pb=document.getElementById('ud-prog');
+  if(!pb)return;
+  window.addEventListener('scroll',function(){
+    var h=document.documentElement;
+    var max=h.scrollHeight-h.clientHeight;
+    pb.style.width=(max>0?(h.scrollTop/max*100):0)+'%';
+  },{passive:true});
+})();
 <\/script>
 </body></html>`;
   }
@@ -1507,9 +1590,38 @@ document.addEventListener('click',function(e){
       btnHTML.id = 'ud-html-btn';
       btnHTML.className = 'btn btn-sm btn-outline header-btn';
       btnHTML.textContent = '🌐 HTML Alumnes';
-      btnHTML.onclick = () => {
+      btnHTML.onclick = async () => {
         const data = collectData();
         if (!data.sessions.length) { alert('Genera el contingut de les sessions primer.'); return; }
+        // Qüestionaris autoavaluables generats amb IA (opcionals)
+        if (confirm('Vols incloure un QÜESTIONARI AUTOAVALUABLE (generat amb IA) al final de cada sessió?\n\n• Acceptar = amb qüestionaris (tarda uns segons)\n• Cancel·lar = exportar sense qüestionaris')) {
+          btnHTML.disabled = true;
+          const origTxt = btnHTML.textContent;
+          try {
+            for (let qi = 0; qi < data.sessions.length; qi++) {
+              const s = data.sessions[qi];
+              btnHTML.textContent = '⏳ Qüestionari ' + (qi+1) + '/' + data.sessions.length + '...';
+              const tmpDiv = document.createElement('div');
+              tmpDiv.innerHTML = s.contingut || '';
+              tmpDiv.querySelectorAll('[data-ud-adapted]').forEach(el=>el.remove());
+              const plain = tmpDiv.innerText.replace(/\s+/g,' ').trim().substring(0, 2500);
+              if (plain.length < 100) continue;
+              try {
+                const prompt = 'Ets un docent d\'ESO. A partir del contingut de la sessió "' + (s.nom||'') + '", crea un qüestionari de 4 preguntes tipus test en VALENCIÀ.\n\nContingut:\n---\n' + plain + '\n---\n\nRespon NOMÉS amb JSON vàlid (sense markdown, sense text extra):\n{"preguntes":[{"q":"pregunta","opcions":["opció a","opció b","opció c","opció d"],"correcta":0,"explicacio":"explicació breu de per què és la resposta correcta"}]}\n"correcta" és l\'índex (0-3) de l\'opció correcta. Varia la posició de les respostes correctes entre preguntes. Preguntes clares i adequades per a ESO.';
+                const r = await fetch('/api/ai/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt, maxTokens: 1600 }) });
+                if (r.ok) {
+                  const j = await r.json();
+                  const clean = (j.text||'').replace(/```json|```/g,'').trim();
+                  const quiz = JSON.parse(clean);
+                  if (quiz && Array.isArray(quiz.preguntes) && quiz.preguntes.length) s.quiz = quiz.preguntes;
+                }
+              } catch(qe) { console.warn('Quiz sessió', qi+1, qe); }
+            }
+          } finally {
+            btnHTML.disabled = false;
+            btnHTML.textContent = origTxt;
+          }
+        }
         const html = generateHTML(data);
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
