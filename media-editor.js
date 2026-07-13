@@ -773,6 +773,40 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       tmp.innerHTML = html;
       tmp.querySelectorAll('.ud-img-controls,.ud-vid-controls,.ud-img-ctrl-btn').forEach(el=>el.remove());
       tmp.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+      // ── PDF professor: fora les imatges I el seu espai (no calen en aquest document) ──
+      tmp.querySelectorAll('img').forEach(el=>{
+        const w = el.closest('.ud-img-wrap-outer');
+        (w || el).remove();
+      });
+      tmp.querySelectorAll('.ud-img-wrap-outer').forEach(el=>el.remove());
+      // ── Àudios (Spotify/SoundCloud/MP3) → targeta compacta amb l'enllaç ──
+      tmp.querySelectorAll('.ud-audio-wrap,[data-ud-audio]').forEach(wrap=>{
+        let url = '';
+        const ifr = wrap.querySelector('iframe');
+        const aud = wrap.querySelector('audio');
+        if (ifr) {
+          const src = ifr.src || '';
+          if (src.includes('spotify.com/embed/')) url = src.replace('/embed/','/').split('?')[0];
+          else if (src.includes('soundcloud.com/player')) { const m = src.match(/url=([^&]+)/); if (m) url = decodeURIComponent(m[1]); }
+          else url = src;
+        } else if (aud) url = aud.getAttribute('src') || '';
+        let cap = '';
+        wrap.querySelectorAll('div').forEach(d=>{ if (d.textContent.includes('🎵')) cap = d.textContent.replace(/🎵/g,'').trim(); });
+        const card = document.createElement('div');
+        card.style.cssText = 'margin:10px 0;padding:8px 12px;background:#f9f8f4;border-left:3px solid #b8860b;border-radius:4px;font-size:12px';
+        card.innerHTML = `<div style="font-weight:600;color:#0d1526">🎵 ${cap||'Àudio'}</div>${url?`<div style="font-family:monospace;font-size:10px;color:#666;word-break:break-all">${url}</div>`:''}`;
+        wrap.replaceWith(card);
+      });
+      // ── Partitures: mantenim el SVG però fora el text d'ajuda ──
+      tmp.querySelectorAll('.ud-score-wrap div').forEach(d=>{
+        if (d.textContent.includes('ratolí')) d.remove();
+      });
+      // ── Fora TOTS els botons residuals (esborrar, controls, etc.) ──
+      tmp.querySelectorAll('button').forEach(el=>el.remove());
+      // ── Fora paràgrafs buits que deixen espais morts ──
+      tmp.querySelectorAll('p').forEach(p=>{
+        if (!p.textContent.trim() && !p.querySelector('img,svg,iframe')) p.remove();
+      });
       tmp.querySelectorAll('[data-ud-img],[data-ud-vid],[data-ud-link]').forEach(el=>{
         el.removeAttribute('data-ud-img');el.removeAttribute('data-ud-vid');el.removeAttribute('data-ud-link');
       });
@@ -840,6 +874,17 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
 .box-text img{max-width:100%;border-radius:4pt;border:1px solid var(--line);margin:6pt 0}
 .box-text ul, .box-text ol{margin:6pt 0 6pt 18pt}
 .box-text li{margin-bottom:3pt}
+.box-text h3{font-size:12pt;font-weight:700;color:var(--ink);margin:10pt 0 5pt;padding-bottom:2pt;border-bottom:1pt solid var(--gold)}
+/* Caixes destacades de l'editor (informació/important/activitat) */
+.box-text [data-ud-callout]{margin:8pt 0;padding:8pt 12pt;border-radius:4pt;break-inside:avoid;page-break-inside:avoid}
+.box-text [data-ud-callout="info"]{background:#e0f2fe;border-left:3pt solid #0891b2}
+.box-text [data-ud-callout="warn"]{background:#fef3c7;border-left:3pt solid #f59e0b}
+.box-text [data-ud-callout="act"]{background:#dcfce7;border-left:3pt solid #10b981}
+/* Blocs d'adaptació DUA */
+.box-text [data-ud-adapted]{break-inside:avoid;page-break-inside:avoid}
+/* Partitures centrades */
+.box-text .ud-score-wrap{text-align:center;break-inside:avoid;page-break-inside:avoid}
+.box-text .ud-score-wrap svg{max-width:85%}
 
 /* GRAELLA SA */
 .sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:10pt;margin-bottom:12pt}
@@ -863,8 +908,9 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   .cover{break-after:page;min-height:auto;padding:60mm 20mm 20mm}
   .page{break-after:page;padding:0}
   .page:last-child{break-after:auto}
-  /* Les caixes poden partir-se, però els títols es queden amb el contingut */
-  .box{break-inside:auto}
+  /* Les caixes NO es parteixen entre pàgines (excepte si són més llargues que una pàgina) */
+  .box{break-inside:avoid;page-break-inside:avoid}
+  .sa-cell{break-inside:avoid;page-break-inside:avoid}
   h3.sub-title{break-after:avoid;break-inside:avoid}
   h2.section-title{break-after:avoid;break-inside:avoid}
   .sess-header{break-inside:avoid;break-after:avoid}
@@ -872,6 +918,8 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   .keep-with-next{break-after:avoid}
   /* Si la caixa es parteix, la part que passa a la següent pàgina respecta el marge @page */
   .box, .box-text{orphans:3;widows:3}
+  .box-text p{orphans:3;widows:3}
+  h3.sub-title + .box{break-before:avoid;page-break-before:avoid}
   a{color:var(--ink);text-decoration:underline}
 }
 
