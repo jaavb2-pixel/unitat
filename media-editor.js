@@ -1618,6 +1618,8 @@ document.addEventListener('click',function(e){
                   const ja = txt.indexOf('{');
                   const jb = txt.lastIndexOf('}');
                   if (ja !== -1 && jb > ja) txt = txt.substring(ja, jb + 1);
+                  // Netegem salts de línia literals dins del JSON (error freqüent de la IA)
+                  txt = txt.replace(/\r/g, '').replace(/\n/g, ' ');
                   const quiz = JSON.parse(txt);
                   if (quiz && Array.isArray(quiz.preguntes) && quiz.preguntes.length) {
                     s.quiz = quiz.preguntes;
