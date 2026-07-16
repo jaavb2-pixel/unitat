@@ -1597,6 +1597,8 @@ document.addEventListener('click',function(e){
         if (confirm('Vols incloure un QÜESTIONARI AUTOAVALUABLE (generat amb IA) al final de cada sessió?\n\n• Acceptar = amb qüestionaris (tarda uns segons)\n• Cancel·lar = exportar sense qüestionaris')) {
           btnHTML.disabled = true;
           const origTxt = btnHTML.textContent;
+          let quizCount = 0;
+          const quizErrors = [];
           try {
             for (let qi = 0; qi < data.sessions.length; qi++) {
               const s = data.sessions[qi];
@@ -1605,21 +1607,39 @@ document.addEventListener('click',function(e){
               tmpDiv.innerHTML = s.contingut || '';
               tmpDiv.querySelectorAll('[data-ud-adapted]').forEach(el=>el.remove());
               const plain = tmpDiv.innerText.replace(/\s+/g,' ').trim().substring(0, 2500);
-              if (plain.length < 100) continue;
+              if (plain.length < 60) { quizErrors.push('Sessió '+(qi+1)+': contingut massa curt'); continue; }
               try {
-                const prompt = 'Ets un docent d\'ESO. A partir del contingut de la sessió "' + (s.nom||'') + '", crea un qüestionari de 4 preguntes tipus test en VALENCIÀ.\n\nContingut:\n---\n' + plain + '\n---\n\nRespon NOMÉS amb JSON vàlid (sense markdown, sense text extra):\n{"preguntes":[{"q":"pregunta","opcions":["opció a","opció b","opció c","opció d"],"correcta":0,"explicacio":"explicació breu de per què és la resposta correcta"}]}\n"correcta" és l\'índex (0-3) de l\'opció correcta. Varia la posició de les respostes correctes entre preguntes. Preguntes clares i adequades per a ESO.';
-                const r = await fetch('/api/ai/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt, maxTokens: 1600 }) });
+                const prompt = 'Ets un docent d\'ESO. A partir del contingut de la sessió "' + (s.nom||'') + '", crea un qüestionari de 4 preguntes tipus test en VALENCIÀ.\n\nContingut:\n---\n' + plain + '\n---\n\nRespon NOMÉS amb JSON vàlid (sense markdown, sense text extra, sense explicacions abans ni després):\n{"preguntes":[{"q":"pregunta","opcions":["opció a","opció b","opció c","opció d"],"correcta":0,"explicacio":"explicació breu de per què és la resposta correcta"}]}\n"correcta" és l\'índex (0-3) de l\'opció correcta. Varia la posició de les respostes correctes entre preguntes. Preguntes clares i adequades per a ESO.';
+                const r = await fetch('/api/ai/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt, maxTokens: 2000 }) });
                 if (r.ok) {
                   const j = await r.json();
-                  const clean = (j.text||'').replace(/```json|```/g,'').trim();
-                  const quiz = JSON.parse(clean);
-                  if (quiz && Array.isArray(quiz.preguntes) && quiz.preguntes.length) s.quiz = quiz.preguntes;
+                  let txt = (j.text || '');
+                  // Extraiem el bloc JSON encara que la IA haja escrit text al voltant
+                  const ja = txt.indexOf('{');
+                  const jb = txt.lastIndexOf('}');
+                  if (ja !== -1 && jb > ja) txt = txt.substring(ja, jb + 1);
+                  const quiz = JSON.parse(txt);
+                  if (quiz && Array.isArray(quiz.preguntes) && quiz.preguntes.length) {
+                    s.quiz = quiz.preguntes;
+                    quizCount++;
+                  } else {
+                    quizErrors.push('Sessió '+(qi+1)+': resposta sense preguntes');
+                  }
+                } else {
+                  let em = 'error ' + r.status;
+                  try { const ej = await r.json(); if (ej && ej.error) em = ej.error; } catch(_) {}
+                  quizErrors.push('Sessió '+(qi+1)+': '+em);
                 }
-              } catch(qe) { console.warn('Quiz sessió', qi+1, qe); }
+              } catch(qe) { quizErrors.push('Sessió '+(qi+1)+': '+qe.message); }
             }
           } finally {
             btnHTML.disabled = false;
             btnHTML.textContent = origTxt;
+          }
+          if (quizCount === 0) {
+            alert('⚠️ No s\'ha pogut generar cap qüestionari.\n\nDetall: ' + (quizErrors[0]||'motiu desconegut') + '\n\nL\'HTML s\'exportarà sense qüestionaris. Torna-ho a provar més tard.');
+          } else if (quizErrors.length) {
+            alert('⚠️ S\'han generat ' + quizCount + ' qüestionaris, però alguns han fallat:\n\n' + quizErrors.join('\n'));
           }
         }
         const html = generateHTML(data);
