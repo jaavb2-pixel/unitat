@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v64] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v65] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -825,6 +825,8 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
         card.innerHTML=`<div style="font-weight:600;color:#0d1526;margin-bottom:2px">🎥 ${capText}</div><div style="font-family:monospace;font-size:11px;color:#666">https://www.youtube.com/watch?v=${vidId}</div>`;
         wrap.replaceWith(card);
       });
+      // Ara sí: llevem els atributs interns que ja no calen
+      tmp.querySelectorAll('[data-ud-vid]').forEach(el=>el.removeAttribute('data-ud-vid'));
       return tmp.innerHTML;
     };
 
@@ -1092,8 +1094,9 @@ ${sessList.map((s,i)=>`
       // Eliminar tots els controls d'edició
       tmp.querySelectorAll('.ud-img-controls,.ud-vid-controls,.ud-img-ctrl-btn,.ud-vid-move,.ud-del-btn-inline').forEach(el=>el.remove());
       tmp.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
-      tmp.querySelectorAll('[data-ud-img],[data-ud-link],[data-ud-vid]').forEach(el=>{
-        el.removeAttribute('data-ud-img'); el.removeAttribute('data-ud-link'); el.removeAttribute('data-ud-vid');
+      // NOTA: data-ud-vid NO s'esborra ací; es necessita més avall per detectar els vídeos.
+      tmp.querySelectorAll('[data-ud-img],[data-ud-link]').forEach(el=>{
+        el.removeAttribute('data-ud-img'); el.removeAttribute('data-ud-link');
       });
       // Arreglem els contenidors d'imatge: overflow:hidden impedeix el float
       tmp.querySelectorAll('.ud-img-wrap-outer').forEach(wrap=>{
@@ -1105,14 +1108,46 @@ ${sessList.map((s,i)=>`
         }
       });
       // Convertim iframes de YouTube en targetes clicables
-      tmp.querySelectorAll('.ud-video-wrap,[data-ud-vid],.ud-video-hover').forEach(wrap => {
-        const iframe = wrap.querySelector('iframe');
+      // Localitzem tots els vídeos: siga quin siga el format en què estan guardats
+      const vidWraps = new Set();
+      tmp.querySelectorAll('.ud-video-wrap,[data-ud-vid],.ud-video-hover,.ud-vid-box').forEach(el=>{
+        // Si és el .ud-vid-box intern, agafem el contenidor exterior
+        const outer = el.classList.contains('ud-vid-box') ? (el.parentElement || el) : el;
+        vidWraps.add(outer);
+      });
+      // També qualsevol iframe de YouTube solt
+      tmp.querySelectorAll('iframe[src*="youtube"]').forEach(f=>{
+        const outer = f.closest('div');
+        if (outer) vidWraps.add(outer);
+      });
+
+      vidWraps.forEach(wrap => {
+        if (!wrap || !wrap.parentNode) return;
         const caption = wrap.querySelector('.ud-video-caption');
-        if (!iframe) return;
-        const src = iframe.src || '';
-        const vidId = (src.match(/\/embed\/([a-zA-Z0-9_-]{11})/) || [])[1];
+        let vidId = '';
+        // 1r: atribut data-ud-vid
+        const holder = wrap.matches('[data-ud-vid]') ? wrap : wrap.querySelector('[data-ud-vid]');
+        if (holder) {
+          const v = holder.getAttribute('data-ud-vid') || '';
+          if (/^[a-zA-Z0-9_-]{11}$/.test(v)) vidId = v;
+        }
+        // 2n: iframe incrustat
+        if (!vidId) {
+          const iframe = wrap.querySelector('iframe');
+          if (iframe) vidId = ((iframe.src||'').match(/\/embed\/([a-zA-Z0-9_-]{11})/) || [])[1] || '';
+        }
+        // 3r: miniatura d'imatge (el format que fa servir l'editor)
+        if (!vidId) {
+          const im = wrap.querySelector('img[src*="img.youtube.com/vi/"]');
+          if (im) vidId = ((im.getAttribute('src')||'').match(/\/vi\/([a-zA-Z0-9_-]{11})\//) || [])[1] || '';
+        }
         if (!vidId) return;
-        const capText = caption ? caption.textContent.replace('▶','').trim() : 'Veure vídeo a YouTube';
+        let capText = caption ? caption.textContent.replace('▶','').trim() : '';
+        if (!capText) {
+          const im2 = wrap.querySelector('img[alt]');
+          if (im2) capText = (im2.getAttribute('alt')||'').trim();
+        }
+        if (!capText) capText = 'Veure vídeo a YouTube';
         const thumb = `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`;
         const ytUrl = `https://www.youtube.com/watch?v=${vidId}`;
         // Mida i posició del vidBox
