@@ -790,6 +790,289 @@
     }
   }
 
+  // 3e. CÒPIA DE SEGURETAT AUTOMÀTICA AL GOOGLE DRIVE
+  // ══════════════════════════════════════════════════════════════════
+
+  var BK_URL_KEY  = 'ud_backup_url';
+  var BK_LAST_KEY = 'ud_backup_last';
+  var BK_HASH_KEY = 'ud_backup_hash';
+  var UNITS_KEY   = 'ud_units';
+
+  function bkGetURL()  { try { return localStorage.getItem(BK_URL_KEY) || ''; } catch(e) { return ''; } }
+  function bkSetURL(u) { try { localStorage.setItem(BK_URL_KEY, u); } catch(e) {} }
+  function bkGetLast() { try { return localStorage.getItem(BK_LAST_KEY) || ''; } catch(e) { return ''; } }
+
+  function bkGetUnits() {
+    try { return JSON.parse(localStorage.getItem(UNITS_KEY) || '[]'); } catch(e) { return []; }
+  }
+
+  // Signatura simple del contingut, per no enviar còpies idèntiques
+  function bkHash(str) {
+    var h = 0;
+    for (var i = 0; i < str.length; i++) {
+      h = ((h << 5) - h) + str.charCodeAt(i);
+      h |= 0;
+    }
+    return String(h) + '_' + str.length;
+  }
+
+  function bkDaysSinceLast() {
+    var last = bkGetLast();
+    if (!last) return 999;
+    var d = new Date(last);
+    if (isNaN(d.getTime())) return 999;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+  }
+
+  // Envia les unitats a l'Apps Script.
+  // text/plain evita la petició prèvia de permisos (CORS preflight).
+  async function bkSend(silent) {
+    var url = bkGetURL();
+    if (!url) { if (!silent) toast('Primer has de configurar la còpia de seguretat.', true); return false; }
+
+    var units = bkGetUnits();
+    if (!units.length) { if (!silent) toast('No hi ha cap unitat guardada per copiar.', true); return false; }
+
+    var payload = JSON.stringify({ unitats: units });
+
+    // Si res no ha canviat des de l'última còpia, no enviem
+    var hash = bkHash(payload);
+    if (silent) {
+      try { if (localStorage.getItem(BK_HASH_KEY) === hash) return true; } catch(e) {}
+    }
+
+    try {
+      var r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: payload
+      });
+      var res = await r.json();
+      if (!res.ok) throw new Error(res.error || 'error desconegut');
+
+      try {
+        localStorage.setItem(BK_LAST_KEY, new Date().toISOString());
+        localStorage.setItem(BK_HASH_KEY, hash);
+      } catch(e) {}
+
+      if (!silent) toast('\u2713 C\u00f2pia guardada al Drive (' + res.unitats + ' unitats)');
+      bkUpdateBadge();
+      return true;
+    } catch(e) {
+      if (!silent) toast('Error en la c\u00f2pia: ' + e.message, true);
+      return false;
+    }
+  }
+
+  // Recupera l'última còpia del Drive
+  async function bkRestore() {
+    var url = bkGetURL();
+    if (!url) { toast('Primer has de configurar la c\u00f2pia de seguretat.', true); return; }
+    try {
+      var r = await fetch(url + (url.indexOf('?') === -1 ? '?' : '&') + 'accio=recuperar');
+      var res = await r.json();
+      if (!res.ok) throw new Error(res.error || 'error desconegut');
+      var n = (res.unitats || []).length;
+      if (!n) { toast('La c\u00f2pia del Drive est\u00e0 buida.', true); return; }
+
+      var actuals = bkGetUnits().length;
+      if (!confirm(
+        'RECUPERAR C\u00d2PIA DEL DRIVE\n\n' +
+        'C\u00f2pia del ' + (res.data || '?') + ' \u2014 ' + n + ' unitats.\n' +
+        'Ara mateix tens ' + actuals + ' unitats al navegador.\n\n' +
+        '\u26A0\uFE0F Les unitats actuals seran SUBSTITU\u00cfDES per les de la c\u00f2pia.\n\n' +
+        'Vols continuar?'
+      )) return;
+
+      localStorage.setItem(UNITS_KEY, JSON.stringify(res.unitats));
+      alert('\u2705 C\u00f2pia recuperada correctament (' + n + ' unitats).\n\nLa p\u00e0gina es recarregar\u00e0 ara.');
+      location.reload();
+    } catch(e) {
+      toast('Error en recuperar: ' + e.message, true);
+    }
+  }
+
+  // Indicador visual a la capçalera
+  function bkUpdateBadge() {
+    var badge = document.getElementById('ud-bk-badge');
+    if (!badge) return;
+    var url = bkGetURL();
+    if (!url) {
+      badge.textContent = '\u26A0\uFE0F C\u00f2pia sense configurar';
+      badge.style.background = '#fef3c7';
+      badge.style.color = '#92400e';
+      badge.style.display = '';
+      return;
+    }
+    var d = bkDaysSinceLast();
+    if (d === 999) {
+      badge.textContent = '\u26A0\uFE0F Cap c\u00f2pia encara';
+      badge.style.background = '#fef3c7'; badge.style.color = '#92400e';
+    } else if (d >= 7) {
+      badge.textContent = '\u26A0\uFE0F Sense c\u00f2pia fa ' + d + ' dies';
+      badge.style.background = '#fee2e2'; badge.style.color = '#991b1b';
+    } else {
+      badge.textContent = '\u2713 C\u00f2pia al dia';
+      badge.style.background = '#dcfce7'; badge.style.color = '#166534';
+    }
+    badge.style.display = '';
+  }
+
+  // Finestra de configuració
+  function bkOpenConfig() {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(26,39,68,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:16px;box-sizing:border-box;overflow-y:auto';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:white;border-radius:16px;padding:26px;width:100%;max-width:620px;box-shadow:0 24px 64px rgba(0,0,0,0.3);display:flex;flex-direction:column;gap:16px';
+
+    var last = bkGetLast();
+    var lastTxt = last ? new Date(last).toLocaleString('ca-ES') : 'mai';
+    var nUnits = bkGetUnits().length;
+
+    box.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<h3 style="margin:0;color:#1e293b;font-size:19px;font-weight:700">\uD83D\uDCBE C\u00f2pia de seguretat al Drive</h3>' +
+      '<button id="bk-close" type="button" style="padding:7px 13px;border:none;border-radius:8px;background:#1e293b;color:white;font-weight:600;font-family:inherit;cursor:pointer">\u2715</button>' +
+      '</div>' +
+
+      '<div style="background:#f0f9ff;border-radius:10px;padding:12px 14px;font-size:13px;color:#0c4a6e;line-height:1.6">' +
+      '<b>Unitats al navegador:</b> ' + nUnits + '<br>' +
+      '<b>\u00daltima c\u00f2pia:</b> ' + lastTxt +
+      '</div>' +
+
+      '<details style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">' +
+      '<summary style="cursor:pointer;font-weight:700;color:#1e293b;font-size:13px">\uD83D\uDCD6 Com configurar-ho (primera vegada)</summary>' +
+      '<ol style="margin:10px 0 0;padding-left:20px;font-size:12.5px;color:#334155;line-height:1.9">' +
+      '<li>Obri <b>script.google.com</b> i crea un <b>projecte nou</b></li>' +
+      '<li>Esborra tot el codi que hi haja i <b>enganxa el codi</b> que t\'ha donat el Claude</li>' +
+      '<li>Clica <b>Desplega \u2192 Nou desplegament</b></li>' +
+      '<li>A la rodeta \u2699\uFE0F tria <b>Aplicaci\u00f3 web</b></li>' +
+      '<li>Executa com a: <b>Jo mateix</b> \u00b7 Qui hi t\u00e9 acc\u00e9s: <b>Qualsevol persona</b></li>' +
+      '<li>Clica <b>Desplega</b> i autoritza els permisos que et demane</li>' +
+      '<li>Copia l\'<b>URL de l\'aplicaci\u00f3 web</b> (acaba en <code>/exec</code>) i enganxa-la ac\u00ed baix</li>' +
+      '</ol></details>' +
+
+      '<div>' +
+      '<label style="display:block;margin-bottom:6px;font-weight:600;color:#1e293b;font-size:13px">URL de l\'Apps Script</label>' +
+      '<input id="bk-url" type="text" placeholder="https://script.google.com/macros/s/.../exec" ' +
+      'style="width:100%;padding:10px 12px;border:1.5px solid #c8d0e8;border-radius:8px;font-size:13px;font-family:monospace;box-sizing:border-box">' +
+      '</div>' +
+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button id="bk-test" type="button" style="padding:9px 15px;border:1.5px solid #0891b2;border-radius:8px;background:white;color:#0891b2;font-weight:600;font-family:inherit;cursor:pointer;font-size:13px">\uD83D\uDD0C Provar connexi\u00f3</button>' +
+      '<button id="bk-now" type="button" style="padding:9px 15px;border:none;border-radius:8px;background:#0891b2;color:white;font-weight:600;font-family:inherit;cursor:pointer;font-size:13px">\uD83D\uDCBE Copiar ara</button>' +
+      '<button id="bk-restore" type="button" style="padding:9px 15px;border:1.5px solid #f59e0b;border-radius:8px;background:white;color:#b45309;font-weight:600;font-family:inherit;cursor:pointer;font-size:13px">\u21BA Recuperar del Drive</button>' +
+      '</div>' +
+
+      '<div id="bk-msg" style="display:none;padding:11px 13px;border-radius:8px;font-size:13px;line-height:1.5"></div>' +
+
+      '<div style="font-size:12px;color:#64748b;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:12px">' +
+      '\uD83D\uDD12 Un cop configurat, la c\u00f2pia es fa <b>autom\u00e0ticament</b> cada vegada que deses una unitat i en tancar l\'app. ' +
+      'Es conserven les <b>30 c\u00f2pies</b> m\u00e9s recents al teu Drive, dins la carpeta <i>Unitats Didactiques - Copies</i>.' +
+      '</div>';
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    var inp = box.querySelector('#bk-url');
+    var msg = box.querySelector('#bk-msg');
+    inp.value = bkGetURL();
+
+    function show(text, isErr) {
+      msg.textContent = text;
+      msg.style.display = 'block';
+      msg.style.background = isErr ? '#fef2f2' : '#dcfce7';
+      msg.style.color = isErr ? '#991b1b' : '#166534';
+    }
+    function saveURL() {
+      var u = inp.value.trim();
+      if (u && u.indexOf('https://script.google.com/') !== 0) {
+        show('L\'URL ha de comen\u00e7ar per https://script.google.com/', true);
+        return null;
+      }
+      bkSetURL(u);
+      return u;
+    }
+
+    box.querySelector('#bk-close').onclick = function(){ saveURL(); bkUpdateBadge(); overlay.remove(); };
+    overlay.onclick = function(e){ if (e.target === overlay) { saveURL(); bkUpdateBadge(); overlay.remove(); } };
+
+    box.querySelector('#bk-test').onclick = async function() {
+      var u = saveURL();
+      if (!u) { show('Enganxa primer l\'URL de l\'Apps Script.', true); return; }
+      show('Provant la connexi\u00f3...', false);
+      try {
+        var r = await fetch(u);
+        var res = await r.json();
+        if (res.ok) show('\u2705 Connexi\u00f3 correcta! Ja pots fer c\u00f2pies (' + (res.copies || 0) + ' c\u00f2pies al Drive).', false);
+        else show('\u274C ' + (res.error || 'resposta inesperada'), true);
+      } catch(e) {
+        show('\u274C No s\'ha pogut connectar. Revisa que el desplegament tinga acc\u00e9s "Qualsevol persona".', true);
+      }
+    };
+
+    box.querySelector('#bk-now').onclick = async function() {
+      var u = saveURL();
+      if (!u) { show('Enganxa primer l\'URL de l\'Apps Script.', true); return; }
+      show('Guardant la c\u00f2pia...', false);
+      var ok = await bkSend(false);
+      if (ok) show('\u2705 C\u00f2pia guardada correctament al teu Drive.', false);
+      else show('\u274C No s\'ha pogut guardar. Prova la connexi\u00f3 primer.', true);
+    };
+
+    box.querySelector('#bk-restore').onclick = function() { saveURL(); bkRestore(); };
+  }
+
+  // Vigila el localStorage: quan canvien les unitats, fa còpia automàtica
+  function bkWatchChanges() {
+    var lastSeen = '';
+    try { lastSeen = localStorage.getItem(UNITS_KEY) || ''; } catch(e) {}
+    var timer = null;
+
+    setInterval(function() {
+      if (!bkGetURL()) return;
+      var now = '';
+      try { now = localStorage.getItem(UNITS_KEY) || ''; } catch(e) { return; }
+      if (now === lastSeen) return;
+      lastSeen = now;
+      // Esperem 5s d'inactivitat per no enviar a cada tecla
+      clearTimeout(timer);
+      timer = setTimeout(function(){ bkSend(true); }, 5000);
+    }, 3000);
+
+    // Còpia en tancar la pestanya (si fa més d'un dia)
+    window.addEventListener('beforeunload', function() {
+      if (!bkGetURL() || bkDaysSinceLast() < 1) return;
+      try {
+        navigator.sendBeacon(bkGetURL(),
+          new Blob([JSON.stringify({ unitats: bkGetUnits() })], { type: 'text/plain;charset=utf-8' }));
+        localStorage.setItem(BK_LAST_KEY, new Date().toISOString());
+      } catch(e) {}
+    });
+  }
+
+  // Botó + indicador a la capçalera
+  function addBackupButton() {
+    var container = document.querySelector('.header-actions');
+    if (!container || document.getElementById('ud-bk-btn')) return;
+
+    var badge = document.createElement('span');
+    badge.id = 'ud-bk-badge';
+    badge.style.cssText = 'display:none;font-size:11px;font-weight:700;padding:4px 9px;border-radius:20px;margin-right:2px;white-space:nowrap';
+
+    var btn = document.createElement('button');
+    btn.id = 'ud-bk-btn';
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline header-btn';
+    btn.textContent = '\uD83D\uDCBE C\u00f2pia';
+    btn.title = 'C\u00f2pia de seguretat al Google Drive';
+    btn.onclick = bkOpenConfig;
+
+    container.appendChild(badge);
+    container.appendChild(btn);
+    bkUpdateBadge();
+  }
+
   // ══════════════════════════════════════════════════════════════════
   // Plantilla: Do Major, 2/4
   var SCORE_TEMPLATE = 'C4/q D4/q | E4/q F4/q | G4/h | C5/h';
@@ -1250,11 +1533,13 @@
     document.querySelectorAll('.ud-editor').forEach(addDragDropSupport);
     cleanupSavedPlayers();
     organizeHeader();
+    addBackupButton();
     hideCanvaButton();
   }
 
   function init() {
     injectEditorCSS();
+    bkWatchChanges();
     hideReplitBadge();
     setupInlineVideoPlayback();
     setupGlobalClickHandler();
@@ -1294,7 +1579,7 @@
       document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     }, 2000);
 
-    console.log('[enhancements.js v14] Àudio · DUA · Partitura · Elimina Canva');
+    console.log('[enhancements.js v16] Àudio · DUA · Partitura · Elimina Canva');
   }
 
   if (document.readyState === 'loading') {
