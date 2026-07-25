@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v62] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v63] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -1394,6 +1394,15 @@ a[style*="width"] .yt-thumb-wrap,.yt-thumb-wrap{position:relative;overflow:hidde
       ? s.exercicis.split('\n').filter(e=>e.trim()).map((e,ei)=>
           `<div class="ex-row"><div class="ex-n" style="background:${color}">${ei+1}</div><div class="ex-t">${e.replace(/^\d+[\.\)]\s*/,'')}</div></div>`
         ).join('') : '';
+    const quizHTML = (s.quiz && s.quiz.length) ? `<div class="quiz-box">
+        <div class="quiz-hdr" style="color:${color}">🧩 Comprova el que has aprés</div>
+        ${s.quiz.map((q,qi)=>`<div class="quiz-q" data-correct="${q.correcta}">
+          <div class="quiz-question">${qi+1}. ${q.q}</div>
+          <div class="quiz-opts">${(q.opcions||[]).map((op,oi)=>`<button type="button" class="quiz-opt" data-oi="${oi}">${op}</button>`).join('')}</div>
+          <div class="quiz-fb">${q.explicacio||''}</div>
+        </div>`).join('')}
+        <div class="quiz-score"></div>
+      </div>` : '';
     return `<section class="tab-panel" id="tab-${i}" style="display:${i===0?'block':'none'}">
       <div class="sess-head">
         <div class="sess-num" style="background:${color}">${i+1}</div>
@@ -1405,6 +1414,7 @@ a[style*="width"] .yt-thumb-wrap,.yt-thumb-wrap{position:relative;overflow:hidde
       <div class="sess-body">
         <div class="sess-text">${cHTML}</div>
         ${exHTML?`<div class="exer-box" style="background:${lightBg};border:1px solid ${color}33"><div class="exer-hdr" style="border-color:${color}44;color:${color}"><span class="exer-hdr-icon">✏️</span><span class="exer-hdr-text">Exercicis i activitats</span></div>${exHTML}</div>`:''}
+        ${quizHTML}
       </div>
     </section>`;
   }).join('')}
