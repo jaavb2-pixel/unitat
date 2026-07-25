@@ -34,6 +34,8 @@
     return searchFiber(fiber, 0);
   }
 
+  console.log('%c[media-editor.js v62] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+
   function collectData() {
     const rs = getAppState();
     const sa = getSAData();
@@ -1607,13 +1609,15 @@ document.addEventListener('click',function(e){
               tmpDiv.innerHTML = s.contingut || '';
               tmpDiv.querySelectorAll('[data-ud-adapted]').forEach(el=>el.remove());
               const plain = tmpDiv.innerText.replace(/\s+/g,' ').trim().substring(0, 2500);
-              if (plain.length < 60) { quizErrors.push('Sessió '+(qi+1)+': contingut massa curt'); continue; }
+              console.log('[QUIZ] Sessió '+(qi+1)+' ("'+(s.nom||'')+'") → '+plain.length+' caràcters de text');
+              if (plain.length < 60) { quizErrors.push('Sessió '+(qi+1)+': contingut massa curt ('+plain.length+' car.)'); continue; }
               try {
                 const prompt = 'Ets un docent d\'ESO. A partir del contingut de la sessió "' + (s.nom||'') + '", crea un qüestionari de 4 preguntes tipus test en VALENCIÀ.\n\nContingut:\n---\n' + plain + '\n---\n\nRespon NOMÉS amb JSON vàlid (sense markdown, sense text extra, sense explicacions abans ni després):\n{"preguntes":[{"q":"pregunta","opcions":["opció a","opció b","opció c","opció d"],"correcta":0,"explicacio":"explicació breu de per què és la resposta correcta"}]}\n"correcta" és l\'índex (0-3) de l\'opció correcta. Varia la posició de les respostes correctes entre preguntes. Preguntes clares i adequades per a ESO.';
                 const r = await fetch('/api/ai/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt, maxTokens: 2000 }) });
                 if (r.ok) {
                   const j = await r.json();
                   const rawTxt = (j.text || '');
+                  console.log('[QUIZ] Sessió '+(qi+1)+' → resposta de '+rawTxt.length+' caràcters:', rawTxt.substring(0,200));
                   // Reparador robust de la capa de fiabilitat (enhancements.js)
                   let quiz = (typeof window.udRepairJSON === 'function') ? window.udRepairJSON(rawTxt) : null;
                   if (!quiz) {
@@ -1643,9 +1647,11 @@ document.addEventListener('click',function(e){
             btnHTML.textContent = origTxt;
           }
           if (quizCount === 0) {
-            alert('⚠️ No s\'ha pogut generar cap qüestionari.\n\nDetall: ' + (quizErrors[0]||'motiu desconegut') + '\n\nL\'HTML s\'exportarà sense qüestionaris. Torna-ho a provar més tard.');
+            alert('⚠️ No s\'ha pogut generar cap qüestionari.\n\nMotius:\n' + (quizErrors.join('\n') || 'desconegut') + '\n\nL\'HTML s\'exportarà sense qüestionaris.');
           } else if (quizErrors.length) {
-            alert('⚠️ S\'han generat ' + quizCount + ' qüestionaris, però alguns han fallat:\n\n' + quizErrors.join('\n'));
+            alert('✅ S\'han generat ' + quizCount + ' qüestionaris.\n\n⚠️ Però alguns han fallat:\n' + quizErrors.join('\n'));
+          } else {
+            alert('✅ S\'han generat ' + quizCount + ' qüestionaris correctament.\n\nEls trobaràs al final de cada sessió, a l\'HTML descarregat.');
           }
         }
         const html = generateHTML(data);
