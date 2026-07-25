@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v63] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v64] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -1440,17 +1440,37 @@ document.addEventListener('DOMContentLoaded',()=>{
   const first=document.querySelector('.tab-btn.act');
   if(first) first.style.background=_colors[0];
 });
-// Reproducció de vídeos YouTube dins de la pàgina (clica la miniatura)
+// ═══ Vídeos de YouTube ═══
+// Si la pàgina s'obri des d'un servidor web → reproducció dins de la pàgina.
+// Si s'obri com a fitxer local (file://) → YouTube bloqueja la incrustació,
+// així que obrim el vídeo en una pestanya nova.
+var _ytLocal = (location.protocol === 'file:');
+document.addEventListener('DOMContentLoaded',function(){
+  if(!_ytLocal)return;
+  // Avís discret perquè el professor sàpiga per què no es reprodueix ací
+  document.querySelectorAll('[data-ytplay]').forEach(function(c){
+    if(c.querySelector('.yt-local-note'))return;
+    var n=document.createElement('div');
+    n.className='yt-local-note';
+    n.style.cssText='font-size:11px;text-align:center;margin-top:5px;color:#64748b';
+    n.textContent='▶ Clica per obrir el vídeo a YouTube';
+    c.appendChild(n);
+  });
+});
 document.addEventListener('click',function(e){
   var c=e.target.closest('[data-ytplay]');
   if(!c)return;
   var id=c.getAttribute('data-ytplay');
+  if(_ytLocal){
+    window.open('https://www.youtube.com/watch?v='+id,'_blank','noopener');
+    return;
+  }
   var box=c.querySelector('.yt-thumb-box');
   if(!box||box.querySelector('iframe'))return;
   box.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
   var fb=document.createElement('div');
   fb.style.cssText='font-size:11px;text-align:center;margin-top:4px';
-  fb.innerHTML='<a href="https://www.youtube.com/watch?v='+id+'" target="_blank" style="color:#888">Si el v\u00eddeo no es veu, clica ac\u00ed per obrir-lo a YouTube</a>';
+  fb.innerHTML='<a href="https://www.youtube.com/watch?v='+id+'" target="_blank" rel="noopener" style="color:#888">Si el v\u00eddeo no es veu, clica ac\u00ed per obrir-lo a YouTube</a>';
   box.after(fb);
   c.style.cursor='default';
 });
