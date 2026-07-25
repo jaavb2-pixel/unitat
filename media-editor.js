@@ -1613,14 +1613,18 @@ document.addEventListener('click',function(e){
                 const r = await fetch('/api/ai/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt, maxTokens: 2000 }) });
                 if (r.ok) {
                   const j = await r.json();
-                  let txt = (j.text || '');
-                  // Extraiem el bloc JSON encara que la IA haja escrit text al voltant
-                  const ja = txt.indexOf('{');
-                  const jb = txt.lastIndexOf('}');
-                  if (ja !== -1 && jb > ja) txt = txt.substring(ja, jb + 1);
-                  // Netegem salts de línia literals dins del JSON (error freqüent de la IA)
-                  txt = txt.replace(/\r/g, '').replace(/\n/g, ' ');
-                  const quiz = JSON.parse(txt);
+                  const rawTxt = (j.text || '');
+                  // Reparador robust de la capa de fiabilitat (enhancements.js)
+                  let quiz = (typeof window.udRepairJSON === 'function') ? window.udRepairJSON(rawTxt) : null;
+                  if (!quiz) {
+                    // Alternativa bàsica si la capa no està carregada
+                    let txt = rawTxt;
+                    const ja = txt.indexOf('{');
+                    const jb = txt.lastIndexOf('}');
+                    if (ja !== -1 && jb > ja) txt = txt.substring(ja, jb + 1);
+                    txt = txt.replace(/\r/g, '').replace(/\n/g, ' ');
+                    quiz = JSON.parse(txt);
+                  }
                   if (quiz && Array.isArray(quiz.preguntes) && quiz.preguntes.length) {
                     s.quiz = quiz.preguntes;
                     quizCount++;
