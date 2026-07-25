@@ -12,6 +12,159 @@
   'use strict';
 
   // ══════════════════════════════════════════════════════════════════
+  // 0. CAPA DE FIABILITAT DE LES CRIDES A LA IA
+  // ══════════════════════════════════════════════════════════════════
+  // Intercepta TOTES les crides a /api/ai/generate de l'aplicació
+  // (incloses les del codi compilat que no podem modificar) i hi afegeix:
+  //   · reintents automàtics amb espera creixent
+  //   · límit mínim de tokens per evitar respostes tallades
+  //   · detecció de respostes truncades
+  //   · missatges d'error clars en lloc de fallades silencioses
+
+  var AI_ENDPOINT   = '/api/ai/generate';
+  var AI_MIN_TOKENS = 2500;   // mínim per evitar talls a mitja frase
+  var AI_RETRIES    = 3;      // intents totals per crida
+  var AI_BACKOFF    = 1200;   // ms d'espera inicial entre intents
+
+  function aiSleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  // Detecta si una resposta ha quedat tallada a mitges
+  function aiLooksTruncated(text) {
+    if (!text) return true;
+    var t = text.trim();
+    if (t.length < 20) return true;
+    // Comptem claus i claudàtors: si no quadren, el JSON està incomplet
+    var opens = (t.match(/[{[]/g) || []).length;
+    var closes = (t.match(/[}\]]/g) || []).length;
+    if (opens > closes) return true;
+    // Cometes senars → cadena sense tancar
+    var quotes = (t.match(/(?<!\\)"/g) || []).length;
+    if (opens > 0 && quotes % 2 !== 0) return true;
+    return false;
+  }
+
+  // Repara els defectes més habituals del JSON generat per la IA
+  function aiRepairJSON(raw) {
+    if (!raw) return null;
+    var t = String(raw).trim();
+    t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+    // Ens quedem només amb el bloc JSON
+    var a = t.search(/[{[]/);
+    if (a === -1) return null;
+    var lastObj = t.lastIndexOf('}');
+    var lastArr = t.lastIndexOf(']');
+    var b = Math.max(lastObj, lastArr);
+    if (b > a) t = t.substring(a, b + 1);
+    else t = t.substring(a);
+
+    // Intent 1: tal com està
+    try { return JSON.parse(t); } catch(e) {}
+
+    // Intent 2: netejar salts de línia literals i comes sobreres
+    var t2 = t.replace(/\r/g, '').replace(/\n/g, ' ').replace(/,\s*([}\]])/g, '$1');
+    try { return JSON.parse(t2); } catch(e) {}
+
+    // Intent 3: tancar estructures obertes (resposta truncada)
+    var t3 = t2;
+    // Tanquem una cadena oberta
+    var q = (t3.match(/(?<!\\)"/g) || []).length;
+    if (q % 2 !== 0) t3 += '"';
+    // Retallem un element incomplet al final
+    t3 = t3.replace(/,\s*[^,{}\[\]]*$/, '');
+    // Tanquem claus i claudàtors pendents, en ordre
+    var stack = [];
+    for (var i = 0; i < t3.length; i++) {
+      var c = t3[i];
+      if (c === '{' || c === '[') stack.push(c);
+      else if (c === '}' || c === ']') stack.pop();
+    }
+    while (stack.length) {
+      var open = stack.pop();
+      t3 += (open === '{' ? '}' : ']');
+    }
+    try { return JSON.parse(t3); } catch(e) {}
+
+    return null;
+  }
+
+  // Substituïm window.fetch per una versió amb reintents per a la IA
+  function installAIReliabilityLayer() {
+    if (window.__udAIWrapped) return;
+    window.__udAIWrapped = true;
+
+    var nativeFetch = window.fetch.bind(window);
+
+    window.fetch = async function(input, init) {
+      var url = (typeof input === 'string') ? input : (input && input.url) || '';
+      var isAI = url.indexOf(AI_ENDPOINT) !== -1;
+
+      if (!isAI || !init || (init.method || '').toUpperCase() !== 'POST') {
+        return nativeFetch(input, init);
+      }
+
+      // Pugem el límit de tokens si és massa baix (evita respostes tallades)
+      var bodyObj = null;
+      try {
+        bodyObj = (typeof init.body === 'string') ? JSON.parse(init.body) : null;
+      } catch(e) {}
+      if (bodyObj) {
+        var mt = bodyObj.maxTokens || bodyObj.max_tokens || 0;
+        if (mt && mt < AI_MIN_TOKENS) {
+          if (bodyObj.maxTokens) bodyObj.maxTokens = AI_MIN_TOKENS;
+          if (bodyObj.max_tokens) bodyObj.max_tokens = AI_MIN_TOKENS;
+          init = Object.assign({}, init, { body: JSON.stringify(bodyObj) });
+        }
+      }
+
+      var lastErr = null;
+
+      for (var attempt = 1; attempt <= AI_RETRIES; attempt++) {
+        try {
+          var res = await nativeFetch(input, init);
+
+          // Errors temporals del servidor → reintentem
+          if (res.status === 429 || res.status >= 500) {
+            lastErr = new Error('El servidor de la IA no respon (error ' + res.status + ')');
+            if (attempt < AI_RETRIES) { await aiSleep(AI_BACKOFF * attempt); continue; }
+            return res;
+          }
+          if (!res.ok) return res; // 4xx: error real, no té sentit reintentar
+
+          // Comprovem que el text no haja quedat tallat
+          var clone = res.clone();
+          var data = null;
+          try { data = await clone.json(); } catch(e) { return res; }
+
+          if (data && typeof data.text === 'string' && aiLooksTruncated(data.text)) {
+            lastErr = new Error('La resposta de la IA ha arribat incompleta');
+            if (attempt < AI_RETRIES) {
+              await aiSleep(AI_BACKOFF * attempt);
+              continue;
+            }
+          }
+          return res;
+
+        } catch (err) {
+          // Error de xarxa (connexió lenta, tall...)
+          lastErr = err;
+          if (attempt < AI_RETRIES) { await aiSleep(AI_BACKOFF * attempt); continue; }
+          throw new Error('No s\'ha pogut connectar amb la IA. Comprova la connexi\u00f3 i torna-ho a provar.');
+        }
+      }
+
+      throw lastErr || new Error('Error desconegut en la crida a la IA');
+    };
+
+    // Fem el reparador accessible per a la resta de codi (media-editor.js inclòs)
+    window.udRepairJSON = aiRepairJSON;
+    console.log('[enhancements.js] Capa de fiabilitat de la IA activada');
+  }
+
+  // S'activa IMMEDIATAMENT (abans que l'app puga fer cap crida a la IA)
+  installAIReliabilityLayer();
+
+
+  // ══════════════════════════════════════════════════════════════════
   // UTILS
   // ══════════════════════════════════════════════════════════════════
 
