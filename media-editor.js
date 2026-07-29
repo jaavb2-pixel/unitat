@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v66] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v67] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -1834,6 +1834,111 @@ document.addEventListener('click',function(e){
     showToastUD('📦 Unitats exportades!');
   }
 
+  // ── NORMALITZADOR DE FORMATS D'IMPORTACIÓ ──────────────────────
+  // Accepta el format natiu de l'app i també fitxers externs o antics,
+  // convertint-los a l'estructura que espera l'aplicació.
+  function normalitzaUnitats(raw) {
+    // Nivell: "3r d'ESO", "3r", 3 → "3"
+    const normNivell = (v) => {
+      if (v == null) return '';
+      const m = String(v).match(/([1-4])/);
+      return m ? m[1] : '';
+    };
+    // Assignatura: accepta 'musica', 'Música'...
+    const normArea = (v) => {
+      if (!v) return '';
+      const s = String(v).toLowerCase().trim();
+      if (s.includes('mus')) return 'musica';
+      return s;
+    };
+    // Exercicis: array → text numerat; string → tal qual
+    const normExercicis = (v) => {
+      if (Array.isArray(v)) return v.map((e,i)=>`${i+1}. ${String(e).trim()}`).join('\n');
+      return String(v || '');
+    };
+    // Quiz: {pregunta, retroaccio} → {q, explicacio}
+    const normQuiz = (v) => {
+      if (!Array.isArray(v)) return undefined;
+      const out = v.map(q => ({
+        q: q.q || q.pregunta || '',
+        opcions: Array.isArray(q.opcions) ? q.opcions : (Array.isArray(q.options) ? q.options : []),
+        correcta: typeof q.correcta === 'number' ? q.correcta : (typeof q.correct === 'number' ? q.correct : 0),
+        explicacio: q.explicacio || q.retroaccio || q.explicacion || ''
+      })).filter(q => q.q && q.opcions.length);
+      return out.length ? out : undefined;
+    };
+    // Sessió externa → sessió nativa
+    const normSessio = (s, i) => {
+      const contingut = s.contingutAlumne || s.text || s.contingut || '';
+      const ex = normExercicis(s.exercicis);
+      const quiz = normQuiz(s.quiz);
+      const sess = {
+        nom: s.nom || s.titol || `Sessió ${i+1}`,
+        objectiusOperatius: s.objectiusOperatius || s.objectius || '',
+        notesProfe: s.notesProfe || s.notes || '',
+        numExercicis: s.numExercicis || (Array.isArray(s.exercicis) ? s.exercicis.length : 3),
+        teExercicis: ex ? true : (s.teExercicis !== undefined ? !!s.teExercicis : false),
+        contingutAlumne: contingut,
+        exercicis: ex,
+        generat: !!contingut,
+        collapsed: false
+      };
+      if (quiz) sess.quiz = quiz;
+      return sess;
+    };
+    // Objecte solt → unitat nativa
+    const normUnitat = (o, i) => {
+      // Ja és nativa
+      if (o && o.state && typeof o.state === 'object') {
+        if (!o.id) o.id = String(Date.now() + i);
+        return o;
+      }
+      if (!o || typeof o !== 'object') return null;
+      const teTitol = !!(o.titol || o.title);
+      const teSessions = Array.isArray(o.sessions) && o.sessions.length > 0;
+      // Descartem objectes que no són una unitat reconeixible
+      if (!teTitol && !teSessions) return null;
+      const sessions = teSessions ? o.sessions.map(normSessio) : [];
+      const titol = o.titol || o.title || 'Unitat importada';
+      const nivell = normNivell(o.nivell || o.nivel || (o.state && o.state.nivell));
+      const assignatura = normArea(o.assignatura || o.area || o.materia);
+      return {
+        id: String(o.id || (Date.now() + i)),
+        titol,
+        assignatura,
+        nivell,
+        data: o.data || new Date().toISOString(),
+        state: {
+          nivell,
+          assignatura,
+          titol,
+          justificacio: o.justificacio || o.justificacion || '',
+          selectedCE: o.selectedCE || [],
+          selectedSB: o.selectedSB || [],
+          selectedCA: o.selectedCA || [],
+          sessions,
+          dua: o.dua || { rep:'', acc:'', imp:'' }
+        },
+        dades: {
+          titol,
+          justificacio: o.justificacio || '',
+          dua: o.dua || { rep:'', acc:'', imp:'' }
+        }
+      };
+    };
+
+    let arr = raw;
+    // Format de la còpia del Drive: { unitats: [...] }
+    if (raw && !Array.isArray(raw) && Array.isArray(raw.unitats)) arr = raw.unitats;
+    // Objecte solt (una única unitat)
+    else if (raw && !Array.isArray(raw)) arr = [raw];
+
+    if (!Array.isArray(arr)) throw new Error('El fitxer no conté cap unitat reconeixible');
+    const units = arr.map(normUnitat).filter(u => u && u.titol && u.state);
+    if (!units.length) throw new Error('No s\'ha trobat cap unitat dins del fitxer');
+    return units;
+  }
+
   function importUnits() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1847,17 +1952,25 @@ document.addEventListener('click',function(e){
       const reader = new FileReader();
       reader.onload = e => {
         try {
-          const units = JSON.parse(e.target.result);
-          if (!Array.isArray(units)) throw new Error('Format incorrecte');
+          const raw = JSON.parse(e.target.result);
+          const units = normalitzaUnitats(raw);
           // Fusiona: afegim les unitats importades sense sobreescriure les existents
           const existing = JSON.parse(localStorage.getItem('ud_units') || '[]');
           const existingIds = new Set(existing.map(u => u.id));
           const news = units.filter(u => !existingIds.has(u.id));
+          if (!news.length) {
+            showToastUD('ℹ️ Aquestes unitats ja estaven importades', true);
+            return;
+          }
           const merged = [...news, ...existing];
           localStorage.setItem('ud_units', JSON.stringify(merged));
-          showToastUD(`✅ ${news.length} unitats importades!`);
+          const noms = news.map(u => '\u2022 ' + u.titol).join('\n');
+          alert('\u2705 ' + news.length + (news.length===1?' unitat importada:':' unitats importades:') + '\n\n' + noms + '\n\nObri-la des de la pestanya \u00abGuardades\u00bb.');
+          showToastUD('\u2705 ' + news.length + ' unitats importades!');
         } catch(err) {
-          showToastUD('❌ Fitxer invàlid', true);
+          console.error('[IMPORT] Error:', err);
+          alert('\u274C No s\u2019ha pogut importar el fitxer.\n\nMotiu: ' + (err.message || 'format desconegut') + '\n\nEl fitxer ha de ser un .json exportat per l\u2019aplicaci\u00f3, o un fitxer amb una llista de sessions.');
+          showToastUD('\u274C Fitxer inv\u00e0lid', true);
         }
       };
       reader.readAsText(file);
