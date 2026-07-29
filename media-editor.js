@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v67] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v68] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -1939,6 +1939,77 @@ document.addEventListener('click',function(e){
     return units;
   }
 
+  // ── GESTIÓ DE L'ESPAI D'EMMAGATZEMATGE ─────────────────────────
+  function espaiUsatMB() {
+    try {
+      let total = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        total += (k.length + (localStorage.getItem(k) || '').length);
+      }
+      return (total * 2 / 1048576).toFixed(2); // UTF-16: 2 bytes per caràcter
+    } catch (e) { return '?'; }
+  }
+
+  function pesUnitatsMB(units) {
+    try { return (JSON.stringify(units).length * 2 / 1048576).toFixed(2); }
+    catch (e) { return '?'; }
+  }
+
+  // Recomprimeix les imatges incrustades de les unitats indicades
+  async function compactaImatges(units, maxWidth, quality) {
+    let compt = 0;
+    for (const u of units) {
+      const sess = (u.state && u.state.sessions) || [];
+      for (const s of sess) {
+        if (!s.contingutAlumne || s.contingutAlumne.indexOf('data:image/') === -1) continue;
+        const div = document.createElement('div');
+        div.innerHTML = s.contingutAlumne;
+        const imgs = Array.from(div.querySelectorAll('img'))
+          .filter(im => (im.getAttribute('src') || '').indexOf('data:image/') === 0);
+        for (const im of imgs) {
+          try {
+            im.src = await compressImageSrc(im.getAttribute('src'), maxWidth, quality);
+            compt++;
+          } catch (e) { /* si falla, la deixem tal com està */ }
+        }
+        s.contingutAlumne = div.innerHTML;
+      }
+    }
+    return compt;
+  }
+
+  // Substitueix les imatges incrustades per una nota (última opció)
+  function llevaImatges(units) {
+    let compt = 0;
+    for (const u of units) {
+      const sess = (u.state && u.state.sessions) || [];
+      for (const s of sess) {
+        if (!s.contingutAlumne || s.contingutAlumne.indexOf('data:image/') === -1) continue;
+        const div = document.createElement('div');
+        div.innerHTML = s.contingutAlumne;
+        Array.from(div.querySelectorAll('img')).forEach(im => {
+          if ((im.getAttribute('src') || '').indexOf('data:image/') !== 0) return;
+          const nota = document.createElement('p');
+          nota.style.cssText = 'color:#94a3b8;font-style:italic;font-size:13px';
+          nota.textContent = '[Imatge no importada per falta d\u2019espai' +
+            (im.getAttribute('alt') ? ': ' + im.getAttribute('alt') : '') + ']';
+          const wrap = im.closest('.ud-img-wrap-outer');
+          (wrap || im).replaceWith(nota);
+          compt++;
+        });
+        s.contingutAlumne = div.innerHTML;
+      }
+    }
+    return compt;
+  }
+
+  function esErrorQuota(err) {
+    return err && (err.name === 'QuotaExceededError' ||
+      err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      /quota/i.test(err.message || ''));
+  }
+
   function importUnits() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1950,7 +2021,7 @@ document.addEventListener('click',function(e){
       document.body.removeChild(input);
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = e => {
+      reader.onload = async e => {
         try {
           const raw = JSON.parse(e.target.result);
           const units = normalitzaUnitats(raw);
@@ -1962,8 +2033,58 @@ document.addEventListener('click',function(e){
             showToastUD('ℹ️ Aquestes unitats ja estaven importades', true);
             return;
           }
-          const merged = [...news, ...existing];
-          localStorage.setItem('ud_units', JSON.stringify(merged));
+
+          // Desa provant, si cal, de reduir el pes de les imatges
+          const desa = () => localStorage.setItem('ud_units', JSON.stringify([...news, ...existing]));
+          try {
+            desa();
+          } catch (q1) {
+            if (!esErrorQuota(q1)) throw q1;
+            const teImatges = JSON.stringify(news).indexOf('data:image/') !== -1;
+            if (!teImatges) {
+              alert('❌ No hi ha prou espai al navegador.\n\n' +
+                'Espai ocupat ara: ' + espaiUsatMB() + ' MB (el màxim sol ser ~5 MB).\n' +
+                'Pes de la importació: ' + pesUnitatsMB(news) + ' MB\n\n' +
+                'Esborra alguna unitat antiga des de «Guardades» i torna-ho a provar.\n' +
+                'Recorda que tens la còpia al Drive per recuperar-les.');
+              showToastUD('❌ Sense espai', true);
+              return;
+            }
+            if (!confirm('⚠️ No hi ha prou espai al navegador per a aquesta unitat.\n\n' +
+              'Espai ocupat: ' + espaiUsatMB() + ' MB de ~5 MB disponibles.\n' +
+              'Pes de la unitat: ' + pesUnitatsMB(news) + ' MB (majoritàriament imatges).\n\n' +
+              'Vols que comprimisca les imatges per fer-la cabre?\n' +
+              '(perdran una mica de qualitat, però es conservaran)')) {
+              showToastUD('Importació cancel·lada', true);
+              return;
+            }
+            showToastUD('⏳ Comprimint imatges...');
+            const n1 = await compactaImatges(news, 900, 0.6);
+            try {
+              desa();
+              showToastUD('✅ ' + n1 + ' imatges comprimides');
+            } catch (q2) {
+              if (!esErrorQuota(q2)) throw q2;
+              showToastUD('⏳ Comprimint més...');
+              await compactaImatges(news, 600, 0.45);
+              try {
+                desa();
+              } catch (q3) {
+                if (!esErrorQuota(q3)) throw q3;
+                if (!confirm('Encara no hi cap, ni amb les imatges molt comprimides.\n\n' +
+                  'Vols importar la unitat SENSE les imatges?\n' +
+                  '(el text, els exercicis i els qüestionaris es conservaran)')) {
+                  showToastUD('Importació cancel·lada', true);
+                  return;
+                }
+                const n3 = llevaImatges(news);
+                desa();
+                alert('ℹ️ Unitat importada sense ' + n3 + ' imatges per falta d\u2019espai.\n\n' +
+                  'Per recuperar espai pots esborrar unitats antigues des de «Guardades» ' +
+                  '(tens la còpia de seguretat al Drive).');
+              }
+            }
+          }
           const noms = news.map(u => '\u2022 ' + u.titol).join('\n');
           alert('\u2705 ' + news.length + (news.length===1?' unitat importada:':' unitats importades:') + '\n\n' + noms + '\n\nObri-la des de la pestanya \u00abGuardades\u00bb.');
           showToastUD('\u2705 ' + news.length + ' unitats importades!');
@@ -1977,6 +2098,30 @@ document.addEventListener('click',function(e){
     };
     input.click();
   }
+
+  // Avís preventiu si l'espai del navegador s'acosta al límit
+  setTimeout(function () {
+    try {
+      const mb = parseFloat(espaiUsatMB());
+      if (isNaN(mb) || mb < 3.5) return;
+      const badge = document.createElement('div');
+      const critic = mb >= 4.5;
+      badge.style.cssText =
+        'position:fixed;bottom:20px;left:20px;z-index:9998;padding:9px 14px;border-radius:10px;' +
+        'font-size:12px;font-weight:600;font-family:inherit;max-width:290px;line-height:1.45;' +
+        'box-shadow:0 4px 16px rgba(0,0,0,.18);cursor:pointer;' +
+        (critic ? 'background:#fee2e2;color:#991b1b;border:1px solid #fca5a5'
+                : 'background:#fef3c7;color:#92400e;border:1px solid #fcd34d');
+      badge.innerHTML = (critic ? '🔴' : '⚠️') + ' Espai del navegador: <b>' + mb + ' MB</b> de ~5 MB.' +
+        '<br><span style="font-weight:400">' +
+        (critic ? 'Esborra unitats antigues des de «Guardades» per poder continuar desant.'
+                : 'Vigila l\u2019espai: les imatges ocupen molt.') +
+        '</span><br><span style="font-weight:400;opacity:.7;font-size:11px">Clica per amagar</span>';
+      badge.onclick = () => badge.remove();
+      document.body.appendChild(badge);
+      setTimeout(() => badge.remove(), 15000);
+    } catch (e) {}
+  }, 3000);
 
   function showToastUD(msg, isErr) {
     let t = document.getElementById('ud-toast-drive');
