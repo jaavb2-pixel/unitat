@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v68] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v69] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -2103,19 +2103,20 @@ document.addEventListener('click',function(e){
   setTimeout(function () {
     try {
       const mb = parseFloat(espaiUsatMB());
-      if (isNaN(mb) || mb < 3.5) return;
+      // El límit real varia segons el navegador (Chrome ~10 MB, altres ~5 MB)
+      if (isNaN(mb) || mb < 6) return;
       const badge = document.createElement('div');
-      const critic = mb >= 4.5;
+      const critic = mb >= 8.5;
       badge.style.cssText =
         'position:fixed;bottom:20px;left:20px;z-index:9998;padding:9px 14px;border-radius:10px;' +
         'font-size:12px;font-weight:600;font-family:inherit;max-width:290px;line-height:1.45;' +
         'box-shadow:0 4px 16px rgba(0,0,0,.18);cursor:pointer;' +
         (critic ? 'background:#fee2e2;color:#991b1b;border:1px solid #fca5a5'
                 : 'background:#fef3c7;color:#92400e;border:1px solid #fcd34d');
-      badge.innerHTML = (critic ? '🔴' : '⚠️') + ' Espai del navegador: <b>' + mb + ' MB</b> de ~5 MB.' +
+      badge.innerHTML = (critic ? '🔴' : '⚠️') + ' Espai del navegador: <b>' + mb + ' MB</b>' +
         '<br><span style="font-weight:400">' +
-        (critic ? 'Esborra unitats antigues des de «Guardades» per poder continuar desant.'
-                : 'Vigila l\u2019espai: les imatges ocupen molt.') +
+        (critic ? 'Estàs al límit: és possible que no es puga desar. Comprimeix les imatges o exporta i esborra unitats antigues.'
+                : 'Les imatges són el que més ocupa. Convé comprimir-les abans d\u2019arribar al límit.') +
         '</span><br><span style="font-weight:400;opacity:.7;font-size:11px">Clica per amagar</span>';
       badge.onclick = () => badge.remove();
       document.body.appendChild(badge);
