@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v70] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v71] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -2127,6 +2127,25 @@ document.addEventListener('click',function(e){
     } catch (e) {}
   }, 3000);
 
+  // Avís quan una imatge no s'ha pogut desar per falta d'espai
+  let _avisImgFet = false;
+  function avisaImatgeNoDesada(err) {
+    console.error('[ESPAI] No s\u2019ha pogut desar la imatge:', err && err.message);
+    if (_avisImgFet) return;
+    _avisImgFet = true;
+    setTimeout(function () {
+      alert('\u26A0\uFE0F NO HI HA ESPAI PER A LES IMATGES\n\n' +
+        'El navegador ha rebutjat desar una imatge perquè l\u2019emmagatzematge està ple ' +
+        '(' + espaiUsatMB() + ' MB).\n\n' +
+        'La imatge s\u2019ha conservat dins del contingut de la unitat, així que NO l\u2019has perduda, ' +
+        'però convé alliberar espai com abans millor:\n\n' +
+        '• Exporta les unitats que ja no faces servir i esborra-les\n' +
+        '• O demana a Claude l\u2019script de compressió d\u2019imatges\n\n' +
+        'Comprova que la unitat s\u2019ha desat correctament abans de tancar.');
+      _avisImgFet = false;
+    }, 300);
+  }
+
   function showToastUD(msg, isErr) {
     let t = document.getElementById('ud-toast-drive');
     if (!t) {
@@ -2861,7 +2880,17 @@ document.addEventListener('click',function(e){
         if (!id || !window._udImgStore[id]) {
           id = 'udimg_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
           window._udImgStore[id] = src;
-          try { localStorage.setItem('_udImgStore', JSON.stringify(window._udImgStore)); } catch(e){}
+          let desada = true;
+          try {
+            localStorage.setItem('_udImgStore', JSON.stringify(window._udImgStore));
+          } catch(e) {
+            // IMPORTANT: si no es pot desar, NO deixem una referència trencada.
+            // Retirem la imatge del magatzem i la conservem incrustada al contingut.
+            desada = false;
+            delete window._udImgStore[id];
+            avisaImatgeNoDesada(e);
+          }
+          if (!desada) return; // deixem el base64 tal qual: no es perd res
           img.setAttribute('data-udid', id);
           // També l'element real de l'editor
           editor.querySelectorAll('img').forEach(realImg => {
