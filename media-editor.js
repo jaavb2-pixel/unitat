@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v69] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v70] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -2113,7 +2113,10 @@ document.addEventListener('click',function(e){
         'box-shadow:0 4px 16px rgba(0,0,0,.18);cursor:pointer;' +
         (critic ? 'background:#fee2e2;color:#991b1b;border:1px solid #fca5a5'
                 : 'background:#fef3c7;color:#92400e;border:1px solid #fcd34d');
+      let mbImg = 0;
+      try { mbImg = (localStorage.getItem('_udImgStore')||'').length * 2 / 1048576; } catch(e) {}
       badge.innerHTML = (critic ? '🔴' : '⚠️') + ' Espai del navegador: <b>' + mb + ' MB</b>' +
+        (mbImg > 1 ? ' <span style="font-weight:400">(' + mbImg.toFixed(1) + ' MB són imatges)</span>' : '') +
         '<br><span style="font-weight:400">' +
         (critic ? 'Estàs al límit: és possible que no es puga desar. Comprimeix les imatges o exporta i esborra unitats antigues.'
                 : 'Les imatges són el que més ocupa. Convé comprimir-les abans d\u2019arribar al límit.') +
@@ -2547,7 +2550,7 @@ document.addEventListener('click',function(e){
   }
 
   // Comprimeix imatges grans per no saturar el localStorage
-  function compressImageSrc(src, maxWidth = 1200, quality = 0.82) {
+  function compressImageSrc(src, maxWidth = 900, quality = 0.68) {
     return new Promise(resolve => {
       // Només comprimim base64 (no URLs externes)
       if (!src.startsWith('data:image')) { resolve(src); return; }
