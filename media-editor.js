@@ -34,7 +34,7 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v65] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v66] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
@@ -742,6 +742,10 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       temporitzacio: rs.temporitzacio || '',
       objectiusGenerals: rs.objectiusGenerals || rs.objectius || '',
       rubrica: loadRubricData(),
+      // Dades en brut per a construir la taula d'alineació curricular
+      rawCE: Array.isArray(rs.selectedCE) ? rs.selectedCE : [],
+      rawSB: Array.isArray(rs.selectedSB) ? rs.selectedSB : [],
+      rawCA: Array.isArray(rs.selectedCA) ? rs.selectedCA : [],
     };
 
     // Per cada sessió, recollim més detall
@@ -832,6 +836,128 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
 
     const fmt = (text) => text ? text.split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('') : '';
 
+    // ── HELPERS DE PROGRAMACIÓ D'AULA ─────────────────────────────
+    const esc = (s) => String(s==null?'':s).replace(/[<>&]/g, m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+
+    // Extreu {codi, text} d'un element (pot ser string o objecte)
+    const item2obj = (it) => {
+      if (typeof it === 'string') {
+        const m = it.match(/^\s*([A-Z0-9][\w.\-]*)\s*[—\-–:.]\s*(.+)$/);
+        return m ? { codi: m[1], text: m[2] } : { codi: '', text: it };
+      }
+      if (it && typeof it === 'object') return { codi: it.codi||'', text: it.text||it.nom||'' };
+      return { codi:'', text:String(it||'') };
+    };
+
+    // Les 8 competències clau del Perfil d'eixida (RD 217/2022)
+    const COMP_CLAU = [
+      ['CCL','Competència en comunicació lingüística'],
+      ['CP','Competència plurilingüe'],
+      ['STEM','Competència matemàtica i en ciència, tecnologia i enginyeria'],
+      ['CD','Competència digital'],
+      ['CPSAA','Competència personal, social i d\'aprendre a aprendre'],
+      ['CC','Competència ciutadana'],
+      ['CE','Competència emprenedora'],
+      ['CCEC','Competència en consciència i expressió culturals']
+    ];
+
+    // Marca les competències clau els descriptors operatius de les quals apareixen
+    // als criteris d'avaluació seleccionats (p.e. CCL1, CPSAA3.2, CCEC4).
+    // Es mostren sempre les 8; només es destaquen les detectades.
+    const detectaCompClau = () => {
+      const buf = (data.rawCA||[])
+        .map(x => { const o = item2obj(x); return o.codi + ' ' + o.text; }).join(' ');
+      return COMP_CLAU.map(([sigla, nom]) => {
+        // El descriptor operatiu sempre porta un número darrere: CCL1, CP2, STEM3...
+        const actiu = new RegExp('\\b' + sigla + '\\d(\\.\\d+)?\\b').test(buf);
+        return [sigla, nom, actiu];
+      });
+    };
+
+    // Taula d'alineació curricular: CE ↔ CA ↔ SB
+    const taulaAlineacio = () => {
+      const ce = (data.rawCE||[]).map(item2obj);
+      const ca = (data.rawCA||[]).map(item2obj);
+      const sb = (data.rawSB||[]).map(item2obj);
+      if (!ce.length && !ca.length && !sb.length) return '';
+
+      // Relacionem els criteris amb la seua competència pel número inicial del codi (p.e. CA 2.1 → CE 2)
+      const numDe = (codi) => { const m = String(codi).match(/(\d+)/); return m ? m[1] : ''; };
+      const files = [];
+
+      if (ce.length) {
+        ce.forEach(comp => {
+          const n = numDe(comp.codi);
+          const caRel = n ? ca.filter(x => numDe(x.codi) === n) : [];
+          const sbRel = n ? sb.filter(x => numDe(x.codi) === n) : [];
+          files.push({
+            ce: comp,
+            ca: caRel.length ? caRel : (ce.length === 1 ? ca : []),
+            sb: sbRel.length ? sbRel : (ce.length === 1 ? sb : [])
+          });
+        });
+        // Criteris i sabers que no s'han pogut vincular
+        const usats = new Set();
+        files.forEach(f => { f.ca.forEach(x=>usats.add(x.codi+x.text)); });
+        const orfesCA = ca.filter(x => !usats.has(x.codi+x.text));
+        const usatsSB = new Set();
+        files.forEach(f => { f.sb.forEach(x=>usatsSB.add(x.codi+x.text)); });
+        const orfesSB = sb.filter(x => !usatsSB.has(x.codi+x.text));
+        if (orfesCA.length || orfesSB.length) {
+          files.push({ ce:{codi:'',text:'Altres elements de la unitat'}, ca:orfesCA, sb:orfesSB });
+        }
+      } else {
+        files.push({ ce:{codi:'',text:'—'}, ca, sb });
+      }
+
+      const cel = (arr) => arr.length
+        ? arr.map(x => `<div class="al-it">${x.codi?`<span class="al-cod">${esc(x.codi)}</span>`:''}${esc(x.text)}</div>`).join('')
+        : '<div class="al-buit">—</div>';
+
+      return `<table class="al-tbl">
+        <thead><tr>
+          <th style="width:34%">Competència específica</th>
+          <th style="width:33%">Criteris d'avaluació</th>
+          <th style="width:33%">Sabers bàsics</th>
+        </tr></thead>
+        <tbody>
+          ${files.map(f => `<tr>
+            <td>${f.ce.codi?`<span class="al-cod">${esc(f.ce.codi)}</span>`:''}${esc(f.ce.text)}</td>
+            <td>${cel(f.ca)}</td>
+            <td>${cel(f.sb)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    };
+
+    // Taula de seqüenciació de sessions
+    const taulaSequencia = () => {
+      if (!sessList.length) return '';
+      return `<table class="seq-tbl">
+        <thead><tr>
+          <th style="width:8%">Sessió</th>
+          <th style="width:30%">Títol</th>
+          <th style="width:42%">Objectius operatius / desenvolupament</th>
+          <th style="width:20%">Temporització</th>
+        </tr></thead>
+        <tbody>${sessList.map((s,i)=>{
+          let resum = s.objectiusOperatius || '';
+          if (!resum) {
+            const d = document.createElement('div');
+            d.innerHTML = s.contingutAlumne || s.contingut || '';
+            resum = d.innerText.replace(/\s+/g,' ').trim().substring(0,180);
+            if (resum.length === 180) resum += '…';
+          }
+          return `<tr>
+            <td style="text-align:center;font-weight:700">${i+1}</td>
+            <td style="font-weight:600">${esc(s.nom||('Sessió '+(i+1)))}</td>
+            <td>${esc(resum.replace(/<[^>]*>/g,''))}</td>
+            <td>${esc(s.temporitzacio||'1 sessió (55 min)')}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+    };
+
     return `<!DOCTYPE html>
 <html lang="ca"><head><meta charset="UTF-8">
 <title>${titol||'Unitat Didàctica'} - Guia del professorat</title>
@@ -866,6 +992,23 @@ body{font-family:'Inter',sans-serif;background:white;color:var(--ink);font-size:
 h2.section-title{font-family:'Fraunces',serif;font-size:16pt;font-weight:700;color:var(--ink);margin:18pt 0 10pt;padding-bottom:4pt;border-bottom:1px solid var(--line);letter-spacing:-.01em}
 h2.section-title:first-child{margin-top:0}
 h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--gold);margin:14pt 0 6pt}
+/* ══ TAULES DE PROGRAMACIÓ D'AULA ══ */
+.al-tbl,.seq-tbl,.dua-tbl{width:100%;border-collapse:collapse;margin:8pt 0 14pt;font-size:9.5pt;break-inside:auto}
+.al-tbl th,.seq-tbl th,.dua-tbl th{background:var(--ink);color:#fff;font-weight:700;font-size:9pt;text-align:left;padding:6pt 8pt;letter-spacing:.3px;text-transform:uppercase}
+.al-tbl td,.seq-tbl td,.dua-tbl td{border:.5pt solid var(--line);padding:6pt 8pt;vertical-align:top;line-height:1.5}
+.al-tbl tr,.seq-tbl tr,.dua-tbl tr{break-inside:avoid;page-break-inside:avoid}
+.al-tbl tbody tr:nth-child(even),.seq-tbl tbody tr:nth-child(even),.dua-tbl tbody tr:nth-child(even){background:#faf9f6}
+.al-it{margin-bottom:5pt;padding-bottom:5pt;border-bottom:.5pt dotted var(--line)}
+.al-it:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.al-cod{display:inline-block;background:var(--gold);color:#fff;font-weight:700;font-size:8pt;padding:1pt 5pt;border-radius:3pt;margin-right:5pt;white-space:nowrap}
+.al-buit{color:var(--muted);font-style:italic}
+.dua-q{font-size:8pt;color:var(--gold);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.cc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5pt 12pt}
+.cc-item{font-size:9.5pt;line-height:1.4;padding:3pt 0}
+.cc-sigla{display:inline-block;background:var(--ink);color:#fff;font-weight:700;font-size:8pt;padding:1pt 5pt;border-radius:3pt;margin-right:4pt;min-width:34pt;text-align:center}
+.cc-item{opacity:.45}
+.cc-item.cc-on{opacity:1;font-weight:600}
+.cc-item.cc-on .cc-sigla{background:var(--gold)}
 
 .box{background:#faf7f0;border:1px solid var(--line);border-radius:6pt;padding:12pt 16pt;margin-bottom:12pt}
 .box-gold{background:var(--gold-soft);border:1px solid #e8dfb5;border-left:4px solid var(--gold)}
@@ -916,6 +1059,9 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   .box{break-inside:avoid;page-break-inside:avoid}
   .sa-cell{break-inside:avoid;page-break-inside:avoid}
   h3.sub-title{break-after:avoid;break-inside:avoid}
+  .al-tbl thead,.seq-tbl thead,.dua-tbl thead{display:table-header-group}
+  .al-tbl tr,.seq-tbl tr,.dua-tbl tr{break-inside:avoid;page-break-inside:avoid}
+  .cc-grid{grid-template-columns:1fr 1fr}
   h2.section-title{break-after:avoid;break-inside:avoid}
   .sess-header{break-inside:avoid;break-after:avoid}
   /* Un grup "títol + caixa" ha de mantenir-se junt SI CAP en una pàgina */
@@ -979,13 +1125,13 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   </div>
 
   ${justificacio ? `
-  <h2 class="section-title">Justificació</h2>
+  <h2 class="section-title">1. Justificació i contextualització</h2>
   <div class="box box-gold">
     <div class="box-text">${fmt(justificacio)}</div>
   </div>` : ''}
 
   ${sa && Object.values(sa).some(v=>v) ? `
-  <h2 class="section-title">Situació d'aprenentatge</h2>
+  <h2 class="section-title">2. Situació d'aprenentatge</h2>
   ${sa.titolSA ? `<div class="box box-gold"><div class="box-label">Títol</div><div class="box-text" style="font-family:'Fraunces',serif;font-size:13pt;font-weight:600">${sa.titolSA}</div></div>` : ''}
   <div class="sa-grid">
     ${sa.narrativa?`<div class="sa-cell full"><div class="box"><div class="box-label">📖 Narrativa</div><div class="box-text">${fmt(sa.narrativa)}</div></div></div>`:''}
@@ -996,16 +1142,139 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
     ${sa.temporitzacio?`<div class="sa-cell full"><div class="box"><div class="box-label">🕐 Temporització</div><div class="box-text">${fmt(sa.temporitzacio)}</div></div></div>`:''}
   </div>` : ''}
 
-  ${data.objectiusGenerals ? `<h2 class="section-title">Objectius</h2><div class="box"><div class="box-text">${fmt(data.objectiusGenerals)}</div></div>` : ''}
-  ${data.competenciesEspecifiques ? `<h2 class="section-title">Competències específiques</h2><div class="box"><div class="box-text">${data.competenciesEspecifiques}</div></div>` : ''}
-  ${data.criterisAvaluacio ? `<h2 class="section-title">Criteris d'avaluació</h2><div class="box"><div class="box-text">${data.criterisAvaluacio}</div></div>` : ''}
-  ${data.sabersBasics ? `<h2 class="section-title">Sabers bàsics</h2><div class="box"><div class="box-text">${data.sabersBasics}</div></div>` : ''}
-  ${data.metodologia ? `<h2 class="section-title">Metodologia</h2><div class="box"><div class="box-text">${fmt(data.metodologia)}</div></div>` : ''}
-  ${data.avaluacio ? `<h2 class="section-title">Avaluació</h2><div class="box"><div class="box-text">${fmt(data.avaluacio)}</div></div>` : ''}
-  ${data.dua ? `<h2 class="section-title">DUA · Disseny Universal d'Aprenentatge</h2><div class="box box-gold"><div class="box-text">${data.dua}</div></div>` : ''}
-  ${data.atencioDiversitat ? `<h2 class="section-title">Atenció a la diversitat</h2><div class="box"><div class="box-text">${fmt(data.atencioDiversitat)}</div></div>` : ''}
-  ${data.recursos ? `<h2 class="section-title">Recursos</h2><div class="box"><div class="box-text">${fmt(data.recursos)}</div></div>` : ''}
-  ${data.temporitzacio ? `<h2 class="section-title">Temporització</h2><div class="box"><div class="box-text">${fmt(data.temporitzacio)}</div></div>` : ''}
+  <h2 class="section-title">3. Concreció curricular · Alineació acadèmica</h2>
+
+  <h3 class="sub-title">Competències clau del perfil d'eixida</h3>
+  <div class="box">
+    <div class="box-text">
+      <div class="cc-grid">${detectaCompClau().map(([s,n,on]) =>
+        `<div class="cc-item${on?' cc-on':''}"><span class="cc-sigla">${s}</span> ${n}</div>`).join('')}</div>
+      <p style="margin-top:8pt;font-size:9pt;color:var(--muted)">Competències clau del Perfil d'eixida (Reial decret 217/2022 i Decret 107/2022). Es destaquen les que es treballen de manera preferent en aquesta unitat, segons els descriptors operatius associats als criteris d'avaluació seleccionats.</p>
+    </div>
+  </div>
+
+  ${taulaAlineacio() ? `<h3 class="sub-title">Taula d'alineació: competències · criteris · sabers</h3>${taulaAlineacio()}` : ''}
+
+  ${data.objectiusGenerals ? `<h3 class="sub-title">Objectius didàctics de la unitat</h3><div class="box"><div class="box-text">${fmt(data.objectiusGenerals)}</div></div>` : ''}
+
+  ${data.competenciesEspecifiques ? `<h3 class="sub-title">Competències específiques (desenvolupament)</h3><div class="box"><div class="box-text">${data.competenciesEspecifiques}</div></div>` : ''}
+  ${data.criterisAvaluacio ? `<h3 class="sub-title">Criteris d'avaluació (desenvolupament)</h3><div class="box"><div class="box-text">${data.criterisAvaluacio}</div></div>` : ''}
+  ${data.sabersBasics ? `<h3 class="sub-title">Sabers bàsics (desenvolupament)</h3><div class="box"><div class="box-text">${data.sabersBasics}</div></div>` : ''}
+
+  <h2 class="section-title">4. Seqüència didàctica</h2>
+  ${taulaSequencia()}
+  ${data.temporitzacio ? `<h3 class="sub-title">Temporització general</h3><div class="box"><div class="box-text">${fmt(data.temporitzacio)}</div></div>` : ''}
+
+  <h2 class="section-title">5. Metodologia</h2>
+  ${data.metodologia ? `<div class="box"><div class="box-text">${fmt(data.metodologia)}</div></div>` : ''}
+  <h3 class="sub-title">Principis metodològics</h3>
+  <div class="box">
+    <div class="box-text">
+      <p>La unitat s'articula al voltant d'una <strong>situació d'aprenentatge</strong> contextualitzada, entesa com el conjunt de situacions i activitats que impliquen el desplegament per part de l'alumnat d'actuacions associades a competències específiques i clau (art. 2.7, Decret 107/2022).</p>
+      <p>S'apliquen metodologies actives que situen l'alumnat al centre del procés: aprenentatge cooperatiu, indagació i treball per reptes, amb un paper docent de guia i mediació. Es combinen agrupaments flexibles (gran grup, equips cooperatius i treball individual) segons la finalitat de cada activitat.</p>
+    </div>
+  </div>
+
+  <h2 class="section-title">6. Disseny Universal per a l'Aprenentatge (DUA)</h2>
+  ${data.dua ? `<div class="box box-gold"><div class="box-text">${data.dua}</div></div>` : ''}
+  <h3 class="sub-title">Concreció dels tres principis</h3>
+  <table class="dua-tbl">
+    <thead><tr>
+      <th style="width:22%">Principi</th>
+      <th style="width:26%">Finalitat</th>
+      <th style="width:52%">Concreció en aquesta unitat</th>
+    </tr></thead>
+    <tbody>
+      <tr><td><strong>Representació</strong><br><span class="dua-q">el QUÈ</span></td>
+        <td>Oferir diverses formes de presentar la informació</td>
+        <td>Materials en formats múltiples (text, àudio, vídeo, partitura i imatge); versió simplificada del contingut per a l'alumnat amb dificultats de comprensió lectora i versió ampliada per a l'alumnat avançat; vocabulari específic explicitat.</td></tr>
+      <tr><td><strong>Acció i expressió</strong><br><span class="dua-q">el COM</span></td>
+        <td>Oferir diverses formes d'actuar i demostrar l'aprenentatge</td>
+        <td>Productes diversificats (oral, escrit, sonor, digital); ús de suports tecnològics; qüestionaris autoavaluables amb retroacció immediata; temps flexible per a la realització de les tasques.</td></tr>
+      <tr><td><strong>Implicació</strong><br><span class="dua-q">el PER QUÈ</span></td>
+        <td>Oferir diverses formes d'implicar-se i motivar-se</td>
+        <td>Connexió amb l'experiència i el context cultural de l'alumnat; possibilitat d'elecció dins de les activitats; treball cooperatiu; reptes amb sentit i producte final amb projecció real.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="section-title">7. Mesures de resposta educativa per a la inclusió</h2>
+  ${data.atencioDiversitat ? `<div class="box"><div class="box-text">${fmt(data.atencioDiversitat)}</div></div>` : ''}
+  <h3 class="sub-title">Nivells de resposta (Decret 104/2018 i Ordre 20/2019)</h3>
+  <table class="dua-tbl">
+    <thead><tr>
+      <th style="width:16%">Nivell</th>
+      <th style="width:30%">Àmbit</th>
+      <th style="width:54%">Mesures previstes en aquesta unitat</th>
+    </tr></thead>
+    <tbody>
+      <tr><td><strong>Nivell I</strong></td><td>Centre i comunitat educativa</td>
+        <td>Materials en valencià i accessibles per a tot l'alumnat; ús de recursos digitals oberts; coherència amb el projecte educatiu de centre.</td></tr>
+      <tr><td><strong>Nivell II</strong></td><td>Grup classe</td>
+        <td>Disseny universal de les activitats, agrupaments heterogenis i cooperatius, docència compartida quan siga possible, retroacció formativa contínua.</td></tr>
+      <tr><td><strong>Nivell III</strong></td><td>Alumnat amb resposta diferenciada</td>
+        <td>Adaptacions d'accés (mida de lletra, suport visual i auditiu, temps addicional); versió simplificada dels continguts; reforç dins de l'aula.</td></tr>
+      <tr><td><strong>Nivell IV</strong></td><td>Alumnat amb NESE</td>
+        <td>Adaptacions curriculars individualitzades significatives coordinades amb el Departament d'Orientació, segons l'informe sociopsicopedagògic i el pla d'actuació personalitzat (PAP).</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="section-title">8. Avaluació</h2>
+  ${data.avaluacio ? `<div class="box"><div class="box-text">${fmt(data.avaluacio)}</div></div>` : ''}
+  <h3 class="sub-title">Moments i instruments</h3>
+  <table class="dua-tbl">
+    <thead><tr>
+      <th style="width:20%">Moment</th>
+      <th style="width:34%">Finalitat</th>
+      <th style="width:46%">Instruments</th>
+    </tr></thead>
+    <tbody>
+      <tr><td><strong>Inicial</strong></td><td>Detectar coneixements previs i punt de partida</td>
+        <td>Pluja d'idees, qüestionari diagnòstic, diàleg dirigit</td></tr>
+      <tr><td><strong>Formativa</strong></td><td>Regular el procés i orientar la millora</td>
+        <td>Observació sistemàtica, registre anecdòtic, qüestionaris autoavaluables amb retroacció, revisió de les produccions</td></tr>
+      <tr><td><strong>Sumativa</strong></td><td>Valorar el grau d'assoliment dels criteris</td>
+        <td>Rúbrica del producte final, prova competencial, portafolis</td></tr>
+    </tbody>
+  </table>
+  <h3 class="sub-title">Autoavaluació i coavaluació</h3>
+  <div class="box"><div class="box-text">
+    <p>Es preveu la participació de l'alumnat en el procés avaluador mitjançant dianes d'autoavaluació al final de la unitat i pautes de coavaluació entre iguals en les tasques cooperatives, amb la finalitat de fomentar la metacognició i l'autoregulació de l'aprenentatge.</p>
+    <p>La qualificació s'obté a partir dels <strong>criteris d'avaluació</strong> associats a les competències específiques, mai de la mitjana aritmètica d'activitats aïllades.</p>
+  </div></div>
+
+  <h2 class="section-title">9. Recursos</h2>
+  ${data.recursos ? `<div class="box"><div class="box-text">${fmt(data.recursos)}</div></div>` : `<div class="box"><div class="box-text"><p>Aula de música amb equip de reproducció, projector i connexió a internet; instrumental Orff; dispositius digitals; materials elaborats pel professorat (documents, presentacions i qüestionaris interactius).</p></div></div>`}
+
+  <h2 class="section-title">10. Elements transversals i ODS</h2>
+  <div class="box"><div class="box-text">
+    <p>D'acord amb l'article 6 del Decret 107/2022, la unitat incorpora de manera transversal l'educació per a la salut, l'educació emocional, la igualtat entre dones i homes, l'educació per al consum responsable i el respecte a la diversitat cultural.</p>
+    <p>Es vincula així mateix amb els <strong>Objectius de Desenvolupament Sostenible</strong> de l'Agenda 2030, especialment amb l'ODS 4 (educació de qualitat), l'ODS 10 (reducció de les desigualtats) i l'ODS 16 (pau, justícia i institucions sòlides), en la mesura que el treball amb el patrimoni musical afavoreix el reconeixement de la diversitat cultural i la convivència.</p>
+  </div></div>
+
+  <h2 class="section-title">11. Avaluació de la pràctica docent</h2>
+  <table class="dua-tbl">
+    <thead><tr><th style="width:58%">Indicador</th><th style="width:42%">Evidència / instrument</th></tr></thead>
+    <tbody>
+      <tr><td>Adequació de la temporització prevista al desenvolupament real</td><td>Diari d'aula i registre de sessions</td></tr>
+      <tr><td>Grau d'assoliment dels criteris d'avaluació pel conjunt del grup</td><td>Anàlisi dels resultats de la rúbrica</td></tr>
+      <tr><td>Idoneïtat dels materials i recursos emprats</td><td>Observació i qüestionari a l'alumnat</td></tr>
+      <tr><td>Eficàcia de les mesures d'inclusió i de les adaptacions DUA</td><td>Seguiment individualitzat i coordinació amb orientació</td></tr>
+      <tr><td>Nivell d'implicació i motivació de l'alumnat</td><td>Observació sistemàtica i diana d'autoavaluació</td></tr>
+    </tbody>
+  </table>
+  <div class="box" style="margin-top:8pt"><div class="box-text">
+    <p><strong>Propostes de millora:</strong> espai reservat per a les conclusions del professorat en finalitzar la unitat.</p>
+    <div style="border:1px dashed var(--line);border-radius:4pt;height:60pt;margin-top:6pt"></div>
+  </div></div>
+
+  <h2 class="section-title">12. Referències normatives</h2>
+  <div class="box"><div class="box-text" style="font-size:9.5pt;line-height:1.7">
+    <p>Llei orgànica 3/2020, de 29 de desembre, per la qual es modifica la Llei orgànica 2/2006, de 3 de maig, d'educació (LOMLOE).</p>
+    <p>Reial decret 217/2022, de 29 de març, pel qual s'estableix l'ordenació i els ensenyaments mínims de l'Educació Secundària Obligatòria.</p>
+    <p>Decret 107/2022, de 5 d'agost, del Consell, pel qual s'estableix l'ordenació i el currículum d'Educació Secundària Obligatòria a la Comunitat Valenciana.</p>
+    <p>Decret 104/2018, de 27 de juliol, del Consell, pel qual es desenvolupen els principis d'equitat i d'inclusió en el sistema educatiu valencià.</p>
+    <p>Ordre 20/2019, de 30 d'abril, per la qual es regula l'organització de la resposta educativa per a la inclusió de l'alumnat.</p>
+  </div></div>
 </section>
 
 ${data.rubrica && data.rubrica.dimensions && data.rubrica.dimensions.length ? `
