@@ -1226,6 +1226,261 @@
     bkUpdateBadge();
   }
 
+  // 3f. GENERAR SESSIONS A PARTIR D'UN PDF
+  // ══════════════════════════════════════════════════════════════════
+
+  var PDF_MAX_MB = 28;          // límit raonable per crida a l'API
+  var PDF_MAX_PAGINES = 55;     // a partir d'ací, oferim retallar
+
+  function fitxerABase64(file) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () { res(String(r.result).split(',')[1]); };
+      r.onerror = function () { rej(new Error('No s\u2019ha pogut llegir el fitxer')); };
+      r.readAsDataURL(file);
+    });
+  }
+
+  // Compta les pàgines sense llibreries externes
+  async function contaPagines(file) {
+    try {
+      var txt = await file.slice(0, Math.min(file.size, 6e6)).text();
+      var m = txt.match(/\/Type\s*\/Page[^s]/g);
+      if (m && m.length) return m.length;
+      var c2 = txt.match(/\/Count\s+(\d+)/);
+      if (c2) return parseInt(c2[1], 10);
+    } catch (e) {}
+    return 0;
+  }
+
+  // Crida a la IA enviant-li el PDF
+  async function callAIambPDF(pdfB64, prompt, maxTokens) {
+    var r = await fetch('/api/ai/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdf: pdfB64, prompt: prompt, maxTokens: maxTokens || 8000 })
+    });
+    if (!r.ok) {
+      var em = 'Error ' + r.status;
+      try { var e = await r.json(); if (e && e.error) em = e.error; } catch (_) {}
+      throw new Error(em);
+    }
+    var d = await r.json();
+    return (d && d.text) || '';
+  }
+
+  // Escriu les sessions generades a l'app, simulant l'edició manual
+  function aplicaSessions(sessions) {
+    var cards = document.querySelectorAll('.session-card');
+    var setVal = function (el, val) {
+      var proto = el.tagName === 'TEXTAREA'
+        ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+      setter.call(el, val);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    var aplicades = 0;
+    sessions.forEach(function (s, i) {
+      var card = cards[i];
+      if (!card) return;
+      // Desplega la targeta si està plegada
+      var body = card.querySelector('.session-body');
+      if (!body) {
+        var hdr = card.querySelector('.session-header');
+        if (hdr) hdr.click();
+        body = card.querySelector('.session-body');
+      }
+      if (!body) return;
+
+      var nom = card.querySelector('.session-name-display');
+      if (nom && s.titol) setVal(nom, s.titol);
+
+      var tas = body.querySelectorAll('textarea');
+      if (tas[0] && s.objectius) setVal(tas[0], s.objectius);
+      if (tas[1] && s.notes) setVal(tas[1], s.notes);
+      aplicades++;
+    });
+    return aplicades;
+  }
+
+  function obreModalPDF() {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(26,39,68,.6);z-index:9999;' +
+      'display:flex;align-items:center;justify-content:center;font-family:inherit;padding:16px;' +
+      'box-sizing:border-box;overflow-y:auto';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:16px;padding:26px;width:100%;max-width:640px;' +
+      'box-shadow:0 24px 64px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:15px';
+
+    box.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<h3 style="margin:0;color:#1a2744;font-size:19px;font-weight:700">\uD83D\uDCC4 Generar sessions des d\u2019un PDF</h3>' +
+      '<button id="pdf-close" type="button" style="padding:7px 13px;border:none;border-radius:8px;' +
+      'background:#1a2744;color:#fff;font-weight:600;font-family:inherit;cursor:pointer">\u2715</button></div>' +
+
+      '<div><label style="display:block;margin-bottom:6px;font-weight:700;color:#1a2744;font-size:12px;' +
+      'text-transform:uppercase;letter-spacing:.6px">Document PDF</label>' +
+      '<input id="pdf-file" type="file" accept="application/pdf,.pdf" ' +
+      'style="width:100%;padding:9px;border:1.5px solid #e4e8f0;border-radius:8px;font-family:inherit;font-size:13px">' +
+      '<div id="pdf-info" style="margin-top:7px;font-size:12px;color:#8a92a6"></div></div>' +
+
+      '<div><label style="display:block;margin-bottom:6px;font-weight:700;color:#1a2744;font-size:12px;' +
+      'text-transform:uppercase;letter-spacing:.6px">Nombre de sessions</label>' +
+      '<input id="pdf-n" type="number" min="1" max="15" value="4" ' +
+      'style="width:90px;padding:9px 12px;border:1.5px solid #e4e8f0;border-radius:8px;font-family:inherit;font-size:14px">' +
+      '<span style="font-size:12px;color:#8a92a6;margin-left:10px">S\u2019aplicaran a les sessions existents</span></div>' +
+
+      '<div><label style="display:block;margin-bottom:6px;font-weight:700;color:#1a2744;font-size:12px;' +
+      'text-transform:uppercase;letter-spacing:.6px">Instruccions (opcional)</label>' +
+      '<textarea id="pdf-instr" rows="4" placeholder="Ex: centra\u2019t en els capítols 2 i 3; adapta-ho a 2n d\u2019ESO; ' +
+      'que cada sessió incloga una audició; ignora la bibliografia..." ' +
+      'style="width:100%;padding:10px 12px;border:1.5px solid #e4e8f0;border-radius:8px;font-family:inherit;' +
+      'font-size:14px;box-sizing:border-box;resize:vertical;line-height:1.6"></textarea></div>' +
+
+      '<div id="pdf-msg" style="display:none;padding:11px 13px;border-radius:8px;font-size:13px;line-height:1.55"></div>' +
+
+      '<div style="display:flex;justify-content:flex-end;gap:8px">' +
+      '<button id="pdf-go" type="button" style="padding:11px 20px;border:none;border-radius:8px;' +
+      'background:linear-gradient(135deg,#c8960c,#f0b429);color:#1a2744;font-weight:700;font-family:inherit;' +
+      'cursor:pointer;font-size:14px">\u2728 Generar sessions</button></div>' +
+
+      '<div style="font-size:11.5px;color:#8a92a6;line-height:1.6;border-top:1px solid #e4e8f0;padding-top:11px">' +
+      'La IA llegirà el PDF i omplirà el <b>títol</b>, els <b>objectius operatius</b> i les <b>notes del professor</b> ' +
+      'de cada sessió. Després podràs revisar-ho i prémer <b>\u2728 Generar</b> a cada sessió (o \u201cGenerar totes\u201d) ' +
+      'per crear el contingut de l\u2019alumnat.</div>';
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    var fileInp = box.querySelector('#pdf-file');
+    var infoEl = box.querySelector('#pdf-info');
+    var msgEl = box.querySelector('#pdf-msg');
+    var btnGo = box.querySelector('#pdf-go');
+
+    function msg(t, tipus) {
+      msgEl.innerHTML = t;
+      msgEl.style.display = t ? 'block' : 'none';
+      var cols = { err: ['#fef2f2', '#991b1b'], ok: ['#dcfce7', '#166534'], info: ['#f0f9ff', '#0c4a6e'] };
+      var c2 = cols[tipus || 'info'];
+      msgEl.style.background = c2[0]; msgEl.style.color = c2[1];
+    }
+    function close() { overlay.remove(); }
+    box.querySelector('#pdf-close').onclick = close;
+    overlay.onclick = function (e) { if (e.target === overlay) close(); };
+
+    fileInp.onchange = async function () {
+      var f = fileInp.files[0];
+      if (!f) { infoEl.textContent = ''; return; }
+      var mb = f.size / 1048576;
+      infoEl.textContent = 'Llegint\u2026';
+      var pags = await contaPagines(f);
+      infoEl.innerHTML = '<b>' + f.name + '</b> \u00b7 ' + mb.toFixed(1) + ' MB' +
+        (pags ? ' \u00b7 ~' + pags + ' pàgines' : '');
+      if (mb > PDF_MAX_MB) {
+        msg('\u26A0\uFE0F El fitxer és molt gran (' + mb.toFixed(1) + ' MB). El màxim és ' + PDF_MAX_MB +
+          ' MB. Prova de comprimir-lo o divideix-lo.', 'err');
+      } else if (pags > PDF_MAX_PAGINES) {
+        msg('\u2139\uFE0F El document té ~' + pags + ' pàgines. Funcionarà, però si vols centrar-te en una part ' +
+          'concreta indica-ho a les instruccions (p. ex. \u201cnomés les pàgines 10-40\u201d).', 'info');
+      } else { msg(''); }
+    };
+
+    btnGo.onclick = async function () {
+      var f = fileInp.files[0];
+      if (!f) { msg('Tria primer un fitxer PDF.', 'err'); return; }
+      if (f.size / 1048576 > PDF_MAX_MB) { msg('El fitxer és massa gran.', 'err'); return; }
+
+      var n = parseInt(box.querySelector('#pdf-n').value, 10) || 4;
+      var instr = box.querySelector('#pdf-instr').value.trim();
+      var cards = document.querySelectorAll('.session-card').length;
+      if (cards < n) {
+        if (!confirm('Has demanat ' + n + ' sessions però només n\u2019hi ha ' + cards + ' creades.\n\n' +
+          'Es generaran ' + n + ' i s\u2019aplicaran les ' + cards + ' primeres.\n' +
+          'Pots afegir-ne més amb \u201c+ Afegir sessió\u201d i tornar-ho a fer.\n\nContinuar?')) return;
+      }
+
+      btnGo.disabled = true;
+      var txtOrig = btnGo.textContent;
+      btnGo.textContent = '\u23F3 Llegint el PDF\u2026';
+      msg('', '');
+
+      try {
+        var b64 = await fitxerABase64(f);
+        btnGo.textContent = '\u23F3 La IA està analitzant el document\u2026';
+
+        var titolInp = document.querySelector('input[type=text]');
+        var titolUnitat = titolInp ? titolInp.value : '';
+
+        var prompt =
+          'Ets un docent expert en did\u00e0ctica de l\u2019ESO a la Comunitat Valenciana, treballant amb el ' +
+          'Decret 107/2022 (LOMLOE).\n\n' +
+          'Analitza el document adjunt i dissenya una seq\u00fcència de ' + n + ' SESSIONS de classe.\n' +
+          (titolUnitat ? 'Unitat did\u00e0ctica: "' + titolUnitat + '".\n' : '') +
+          (instr ? '\nINSTRUCCIONS ESPEC\u00cdFIQUES DEL DOCENT (prioritàries):\n' + instr + '\n' : '') +
+          '\nPer a cada sessió indica:\n' +
+          '- "titol": nom breu i clar de la sessió (màxim 8 paraules)\n' +
+          '- "objectius": 2-3 objectius operatius amb verbs observables (identificar, comparar, interpretar, ' +
+          'crear, valorar\u2026), un per l\u00ednia\n' +
+          '- "notes": notes del professorat de 120-200 paraules explicant els continguts concrets del document ' +
+          'que es treballaran en aquesta sessió, els conceptes clau i com abordar-los. Ha de ser prou detallat ' +
+          'perquè després es puga generar el text per a l\u2019alumnat a partir d\u2019aquestes notes.\n\n' +
+          'Reparteix el contingut del document de manera progressiva i equilibrada entre les sessions. ' +
+          'Escriu-ho TOT EN VALENCI\u00c0.\n\n' +
+          'Respon NOM\u00c9S amb aquest JSON, sense cap text abans ni despr\u00e9s, sense Markdown:\n' +
+          '{"sessions":[{"titol":"\u2026","objectius":"\u2026","notes":"\u2026"}]}';
+
+        var resp = await callAIambPDF(b64, prompt, 8000);
+
+        var dades = (typeof window.udRepairJSON === 'function') ? window.udRepairJSON(resp) : null;
+        if (!dades) {
+          var t = resp.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+          var a = t.indexOf('{'), b = t.lastIndexOf('}');
+          if (a !== -1 && b > a) t = t.substring(a, b + 1);
+          dades = JSON.parse(t);
+        }
+        if (!dades || !Array.isArray(dades.sessions) || !dades.sessions.length) {
+          throw new Error('La IA no ha retornat cap sessió v\u00e0lida');
+        }
+
+        btnGo.textContent = '\u23F3 Aplicant\u2026';
+        var apl = aplicaSessions(dades.sessions);
+
+        msg('\u2705 <b>' + apl + ' sessions omplides</b> amb el t\u00edtol, els objectius i les notes del professor.<br>' +
+          'Revisa-les i prem <b>\u2728 Generar</b> a cada sessió per crear el contingut de l\u2019alumnat.', 'ok');
+        toast('\u2713 ' + apl + ' sessions generades des del PDF');
+        setTimeout(close, 4000);
+
+      } catch (e) {
+        msg('\u274C ' + e.message + '<br><span style="font-size:12px">Si el document \u00e9s molt llarg, ' +
+          'prova d\u2019indicar a les instruccions quines pàgines interessen.</span>', 'err');
+      } finally {
+        btnGo.disabled = false;
+        btnGo.textContent = txtOrig;
+      }
+    };
+  }
+
+  function afigBotoPDF() {
+    if (document.getElementById('ud-pdf-sess-btn')) return;
+    // El botó "+ Afegir sessió" marca la capçalera de la pestanya de sessions
+    var ref = null;
+    document.querySelectorAll('button').forEach(function (b) {
+      if (b.textContent.indexOf('Afegir sessi') !== -1) ref = b;
+    });
+    if (!ref || !ref.parentElement) return;
+
+    var btn = document.createElement('button');
+    btn.id = 'ud-pdf-sess-btn';
+    btn.type = 'button';
+    btn.className = 'btn btn-outline';
+    btn.textContent = '\uD83D\uDCC4 Des d\u2019un PDF';
+    btn.title = 'Generar les sessions a partir d\u2019un document PDF';
+    btn.onclick = obreModalPDF;
+    ref.parentElement.insertBefore(btn, ref);
+  }
+
   // ══════════════════════════════════════════════════════════════════
   // Plantilla: Do Major, 2/4
   var SCORE_TEMPLATE = 'C4/q D4/q | E4/q F4/q | G4/h | C5/h';
@@ -1685,6 +1940,7 @@
     document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     document.querySelectorAll('.ud-editor').forEach(addDragDropSupport);
     cleanupSavedPlayers();
+    afigBotoPDF();
     organizeHeader();
     addBackupButton();
     hideCanvaButton();
@@ -1732,7 +1988,7 @@
       document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     }, 2000);
 
-    console.log('[enhancements.js v16] Àudio · DUA · Partitura · Elimina Canva');
+    console.log('[enhancements.js v18] Àudio · DUA · Partitura · Elimina Canva');
   }
 
   if (document.readyState === 'loading') {
