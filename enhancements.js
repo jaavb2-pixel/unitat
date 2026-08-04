@@ -1229,8 +1229,77 @@
   // 3f. GENERAR SESSIONS A PARTIR D'UN PDF
   // ══════════════════════════════════════════════════════════════════
 
-  var PDF_MAX_MB = 28;          // límit raonable per crida a l'API
-  var PDF_MAX_PAGINES = 55;     // a partir d'ací, oferim retallar
+  // Vercel limita cada petició a ~4,5 MB. En base64 el fitxer creix un 33%,
+  // així que el PDF original no pot passar de ~3,2 MB.
+  var PDF_MAX_MB = 3.2;
+  var PDF_MAX_PAGINES = 55;
+
+  // Carrega pdf.js per poder rasteritzar i comprimir PDF pesats
+  function carregaPdfJs() {
+    return new Promise(function (res, rej) {
+      if (window.pdfjsLib) { res(window.pdfjsLib); return; }
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = function () {
+        try {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        } catch (e) {}
+        res(window.pdfjsLib);
+      };
+      s.onerror = function () { rej(new Error('No s\u2019ha pogut carregar el lector de PDF')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // Carrega jsPDF per reconstruir el PDF comprimit
+  function carregaJsPDF() {
+    return new Promise(function (res, rej) {
+      if (window.jspdf && window.jspdf.jsPDF) { res(window.jspdf.jsPDF); return; }
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = function () { res(window.jspdf.jsPDF); };
+      s.onerror = function () { rej(new Error('No s\u2019ha pogut carregar el compressor de PDF')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // Rasteritza cada pàgina i les torna a muntar en un PDF molt més lleuger
+  async function comprimeixPDF(file, onProgres, escala, qualitat) {
+    escala = escala || 1.5;
+    qualitat = qualitat || 0.7;
+    var pdfjsLib = await carregaPdfJs();
+    var jsPDF = await carregaJsPDF();
+
+    var buf = await file.arrayBuffer();
+    var doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    var total = doc.numPages;
+    var out = null;
+
+    for (var i = 1; i <= total; i++) {
+      if (onProgres) onProgres(i, total);
+      var page = await doc.getPage(i);
+      var vp = page.getViewport({ scale: escala });
+      var cv = document.createElement('canvas');
+      cv.width = Math.round(vp.width);
+      cv.height = Math.round(vp.height);
+      var cx = cv.getContext('2d');
+      cx.fillStyle = '#fff';
+      cx.fillRect(0, 0, cv.width, cv.height);
+      await page.render({ canvasContext: cx, viewport: vp }).promise;
+      var img = cv.toDataURL('image/jpeg', qualitat);
+
+      var wmm = 210, hmm = (cv.height / cv.width) * wmm;
+      if (!out) {
+        out = new jsPDF({ orientation: hmm > wmm ? 'p' : 'l', unit: 'mm', format: [wmm, hmm] });
+      } else {
+        out.addPage([wmm, hmm], hmm > wmm ? 'p' : 'l');
+      }
+      out.addImage(img, 'JPEG', 0, 0, wmm, hmm, undefined, 'FAST');
+      cv.width = cv.height = 0; // allibera memòria
+    }
+    return out.output('datauristring').split(',')[1];
+  }
 
   function fitxerABase64(file) {
     return new Promise(function (res, rej) {
@@ -1349,7 +1418,7 @@
       '<div style="font-size:11.5px;color:#8a92a6;line-height:1.6;border-top:1px solid #e4e8f0;padding-top:11px">' +
       'La IA llegirà el PDF i omplirà el <b>títol</b>, els <b>objectius operatius</b> i les <b>notes del professor</b> ' +
       'de cada sessió. Després podràs revisar-ho i prémer <b>\u2728 Generar</b> a cada sessió (o \u201cGenerar totes\u201d) ' +
-      'per crear el contingut de l\u2019alumnat.</div>';
+      'per crear el contingut de l\u2019alumnat.<br><br>\uD83D\uDCA1 Els PDF de m\u00e9s de 3 MB es comprimeixen sols abans d\u2019enviar-los.</div>';
 
     overlay.appendChild(box);
     document.body.appendChild(overlay);
@@ -1379,8 +1448,9 @@
       infoEl.innerHTML = '<b>' + f.name + '</b> \u00b7 ' + mb.toFixed(1) + ' MB' +
         (pags ? ' \u00b7 ~' + pags + ' pàgines' : '');
       if (mb > PDF_MAX_MB) {
-        msg('\u26A0\uFE0F El fitxer és molt gran (' + mb.toFixed(1) + ' MB). El màxim és ' + PDF_MAX_MB +
-          ' MB. Prova de comprimir-lo o divideix-lo.', 'err');
+        msg('\u2139\uFE0F El fitxer pesa ' + mb.toFixed(1) + ' MB, m\u00e9s del que admet el servidor (' +
+          PDF_MAX_MB + ' MB).<br><b>Es comprimir\u00e0 autom\u00e0ticament</b> abans d\u2019enviar-lo. ' +
+          'Pot tardar uns segons segons les p\u00e0gines.', 'info');
       } else if (pags > PDF_MAX_PAGINES) {
         msg('\u2139\uFE0F El document té ~' + pags + ' pàgines. Funcionarà, però si vols centrar-te en una part ' +
           'concreta indica-ho a les instruccions (p. ex. \u201cnomés les pàgines 10-40\u201d).', 'info');
@@ -1390,7 +1460,6 @@
     btnGo.onclick = async function () {
       var f = fileInp.files[0];
       if (!f) { msg('Tria primer un fitxer PDF.', 'err'); return; }
-      if (f.size / 1048576 > PDF_MAX_MB) { msg('El fitxer és massa gran.', 'err'); return; }
 
       var n = parseInt(box.querySelector('#pdf-n').value, 10) || 4;
       var instr = box.querySelector('#pdf-instr').value.trim();
@@ -1407,7 +1476,36 @@
       msg('', '');
 
       try {
-        var b64 = await fitxerABase64(f);
+        var b64;
+        var mbF = f.size / 1048576;
+
+        if (mbF <= PDF_MAX_MB) {
+          b64 = await fitxerABase64(f);
+        } else {
+          // Compressió progressiva fins que càpiga
+          var passos = [
+            { escala: 1.5, qualitat: 0.72, nom: 'qualitat alta' },
+            { escala: 1.2, qualitat: 0.6,  nom: 'qualitat mitjana' },
+            { escala: 1.0, qualitat: 0.45, nom: 'qualitat redu\u00efda' }
+          ];
+          for (var pi = 0; pi < passos.length; pi++) {
+            var p = passos[pi];
+            msg('\u23F3 Comprimint el PDF (' + p.nom + ')\u2026', 'info');
+            b64 = await comprimeixPDF(f, function (n, t) {
+              btnGo.textContent = '\u23F3 Comprimint p\u00e0gina ' + n + '/' + t + '\u2026';
+            }, p.escala, p.qualitat);
+            var mbNou = b64.length * 0.75 / 1048576;
+            if (mbNou <= PDF_MAX_MB) {
+              msg('\u2705 PDF comprimit: ' + mbF.toFixed(1) + ' MB \u2192 ' + mbNou.toFixed(1) + ' MB', 'ok');
+              break;
+            }
+            if (pi === passos.length - 1) {
+              throw new Error('El document \u00e9s massa pesat fins i tot comprimit (' + mbNou.toFixed(1) +
+                ' MB). Prova de dividir-lo en dues parts.');
+            }
+          }
+        }
+
         btnGo.textContent = '\u23F3 La IA està analitzant el document\u2026';
 
         var titolInp = document.querySelector('input[type=text]');
@@ -1453,8 +1551,10 @@
         setTimeout(close, 4000);
 
       } catch (e) {
-        msg('\u274C ' + e.message + '<br><span style="font-size:12px">Si el document \u00e9s molt llarg, ' +
-          'prova d\u2019indicar a les instruccions quines pàgines interessen.</span>', 'err');
+        var extra = /413/.test(e.message)
+          ? 'El servidor ha rebutjat el fitxer per la mida. Prova de dividir el PDF en dues parts.'
+          : 'Si el document \u00e9s molt llarg, prova d\u2019indicar a les instruccions quines p\u00e0gines interessen.';
+        msg('\u274C ' + e.message + '<br><span style="font-size:12px">' + extra + '</span>', 'err');
       } finally {
         btnGo.disabled = false;
         btnGo.textContent = txtOrig;
@@ -1988,7 +2088,7 @@
       document.querySelectorAll('.ud-score-wrap').forEach(attachScoreEvents);
     }, 2000);
 
-    console.log('[enhancements.js v18] Àudio · DUA · Partitura · Elimina Canva');
+    console.log('[enhancements.js v19] Àudio · DUA · Partitura · Elimina Canva');
   }
 
   if (document.readyState === 'loading') {
