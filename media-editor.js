@@ -34,11 +34,11 @@
     return searchFiber(fiber, 0);
   }
 
-  console.log('%c[media-editor.js v71] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
+  console.log('%c[media-editor.js v72] Q\u00fcestionaris autoavaluables ACTIUS', 'background:#0891b2;color:white;padding:2px 6px;border-radius:3px');
 
   function collectData() {
     const rs = getAppState();
-    const sa = getSAData();
+    const sa = getSADataFiable();
 
     // Sempre llegim directament dels editors del DOM per capturar imatges i vídeos
     const editorSessions = [];
@@ -122,6 +122,30 @@
       arees:       get('sa-arees'),
       temporitzacio: get('sa-temporitzacio'),
     };
+  }
+
+  // Llegeix la SA: primer del formulari; si està buit, del magatzem.
+  // Necessari perquè el PDF es pot generar des d'una altra pestanya.
+  function getSADataFiable() {
+    const form = getSAData();
+    if (Object.values(form).some(v => v && String(v).trim())) return form;
+    try {
+      const raw = localStorage.getItem(getCurrentUnitKey());
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d && Object.values(d).some(v => v && String(v).trim())) return d;
+      }
+    } catch (e) {}
+    return form;
+  }
+
+  // Igual per a la rúbrica
+  function getRubricDataFiable() {
+    try {
+      const form = (typeof getRubricData === 'function') ? getRubricData() : null;
+      if (form && form.dimensions && form.dimensions.length) return form;
+    } catch (e) {}
+    return loadRubricData();
   }
 
   // ── PERSISTÈNCIA DE LA SA ────────────────────────────────────────
@@ -741,7 +765,7 @@ Escriu tot en VALENCIÀ. Sigues concret, pràctic i adequat per a ${nivell}r d'E
       recursos: rs.recursos || '',
       temporitzacio: rs.temporitzacio || '',
       objectiusGenerals: rs.objectiusGenerals || rs.objectius || '',
-      rubrica: loadRubricData(),
+      rubrica: getRubricDataFiable(),
       // Dades en brut per a construir la taula d'alineació curricular
       rawCE: Array.isArray(rs.selectedCE) ? rs.selectedCE : [],
       rawSB: Array.isArray(rs.selectedSB) ? rs.selectedSB : [],
@@ -1130,6 +1154,13 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
     <div class="box-text">${fmt(justificacio)}</div>
   </div>` : ''}
 
+  ${!(sa && Object.values(sa).some(v=>v)) ? `
+  <h2 class="section-title">2. Situació d'aprenentatge</h2>
+  <div class="box" style="border-style:dashed"><div class="box-text" style="color:var(--muted);font-style:italic">
+    Encara no s'ha definit la situació d'aprenentatge d'aquesta unitat.
+    Pots emplenar-la des de la pestanya <strong>Configuració</strong>, a l'apartat
+    <strong>Situació d'Aprenentatge</strong> (o generar-la amb la IA).
+  </div></div>` : ''}
   ${sa && Object.values(sa).some(v=>v) ? `
   <h2 class="section-title">2. Situació d'aprenentatge</h2>
   ${sa.titolSA ? `<div class="box box-gold"><div class="box-label">Títol</div><div class="box-text" style="font-family:'Fraunces',serif;font-size:13pt;font-weight:600">${sa.titolSA}</div></div>` : ''}
@@ -1277,6 +1308,15 @@ h3.sub-title{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spac
   </div></div>
 </section>
 
+${!(data.rubrica && data.rubrica.dimensions && data.rubrica.dimensions.length) ? `
+<div class="page">
+  <h2 class="section-title">Rúbrica d'avaluació</h2>
+  <div class="box" style="border-style:dashed"><div class="box-text" style="color:var(--muted);font-style:italic">
+    Encara no s'ha creat la rúbrica d'aquesta unitat.
+    Pots crear-la des de la pestanya <strong>Vista Docent</strong>, a l'apartat
+    <strong>Rúbrica d'avaluació</strong> (es pot generar amb la IA a partir dels criteris seleccionats).
+  </div></div>
+</div>` : ''}
 ${data.rubrica && data.rubrica.dimensions && data.rubrica.dimensions.length ? `
 <!-- RÚBRICA D'AVALUACIÓ -->
 <section class="page">
